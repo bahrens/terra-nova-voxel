@@ -2,7 +2,15 @@
 // The mesher culls hidden faces, bakes directional lighting + ambient occlusion
 // into vertex colours, and emits separate geometry for opaque / foliage / water.
 import * as THREE from "three";
-import { AIR, BLOCKS, isOpaque, isLiquid } from "./blocks.js";
+import { AIR, BLOCK, BLOCKS, isOpaque, isLiquid } from "./blocks.js";
+
+// Rendered top height of a water cell. Submerged cells are full; a surface
+// source sits slightly below the block top; flowing water tapers with level.
+function fluidHeight(level, above) {
+  if (above) return 1.0;
+  if (level >= 9) return 0.875;          // source
+  return Math.max(0.12, (level / 8) * 0.85); // flowing 1-8
+}
 
 export const CHUNK_SIZE = 16;
 export const WORLD_HEIGHT = 112;
@@ -86,6 +94,12 @@ export class Chunk {
           // Cross-shaped plants are billboards, not cubes.
           if (def.render === "cross") {
             this.emitCross(buffers.foliage, world, wx, wy, wz, def);
+            continue;
+          }
+
+          // Water is meshed with level-based heights (tapered flow / surface dip).
+          if (def.liquid) {
+            this.emitWaterCell(buffers.water, world, wx, wy, wz);
             continue;
           }
 
@@ -197,6 +211,66 @@ export class Chunk {
         buf.colors.push(b, b, b);
       }
       buf.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+
+  pushQuad(buf, verts, uv, light) {
+    const base = buf.positions.length / 3;
+    for (let i = 0; i < 4; i++) {
+      buf.positions.push(verts[i][0], verts[i][1], verts[i][2]);
+      buf.normals.push(0, 1, 0);
+      buf.uvs.push(uv[i][0], uv[i][1]);
+      buf.colors.push(light, light, light);
+    }
+    buf.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+
+  // Mesh a water cell using its surface height. Interior (submerged) cells
+  // emit nothing; the surface dips slightly and flowing water tapers, with
+  // small "step" faces where neighbouring water is shallower.
+  emitWaterCell(buf, world, wx, wy, wz) {
+    const W = BLOCK.WATER;
+    const lvl = world.getWaterLevel(wx, wy, wz);
+    const aboveId = world.getBlock(wx, wy + 1, wz);
+    const above = aboveId === W;
+    const sh = fluidHeight(lvl, above);
+    const [u0, v0, u1, v1] = world.atlas.uv("water");
+    const UV = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+
+    // Top surface (only where not covered by water/solid above).
+    if (!above && !isOpaque(aboveId)) {
+      const y = wy + sh;
+      this.pushQuad(buf, [[wx, y, wz], [wx + 1, y, wz], [wx + 1, y, wz + 1], [wx, y, wz + 1]],
+        UV, FACE_LIGHT.top);
+    }
+
+    // Bottom (rare — only over open air).
+    const belowId = world.getBlock(wx, wy - 1, wz);
+    if (!isOpaque(belowId) && belowId !== W) {
+      this.pushQuad(buf, [[wx, wy, wz + 1], [wx + 1, wy, wz + 1], [wx + 1, wy, wz], [wx, wy, wz]],
+        UV, FACE_LIGHT.bottom);
+    }
+
+    // Sides.
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (const [dx, dz] of dirs) {
+      const nb = world.getBlock(wx + dx, wy, wz + dz);
+      if (isOpaque(nb)) continue;
+      let by = 0;
+      if (nb === W) {
+        const nAbove = world.getBlock(wx + dx, wy + 1, wz + dz) === W;
+        const nsh = fluidHeight(world.getWaterLevel(wx + dx, wy, wz + dz), nAbove);
+        if (sh - nsh <= 1e-4) continue;  // neighbour same height or taller -> hidden
+        by = nsh;                         // draw only the exposed step
+      }
+      let x0, z0, x1, z1;
+      if (dx === 1) { x0 = wx + 1; z0 = wz; x1 = wx + 1; z1 = wz + 1; }
+      else if (dx === -1) { x0 = wx; z0 = wz + 1; x1 = wx; z1 = wz; }
+      else if (dz === 1) { x0 = wx + 1; z0 = wz + 1; x1 = wx; z1 = wz + 1; }
+      else { x0 = wx; z0 = wz; x1 = wx + 1; z1 = wz; }
+      const yb = wy + by, yt = wy + sh;
+      this.pushQuad(buf, [[x0, yb, z0], [x1, yb, z1], [x1, yt, z1], [x0, yt, z0]],
+        UV, FACE_LIGHT.z);
     }
   }
 
