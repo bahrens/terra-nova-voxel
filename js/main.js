@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { World } from "./world.js";
 import { Player } from "./player.js";
 import { CHUNK_SIZE } from "./chunk.js";
-import { HOTBAR, BLOCKS } from "./blocks.js";
+import { HOTBAR, BLOCKS, BLOCK } from "./blocks.js";
 
 const SKY = 0x9ad0f0;
 const RENDER_DISTANCE = 10;
@@ -19,7 +19,12 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
 // Keep distant terrain visible: fog only bites near the edge of view range.
 const fogFar = (RENDER_DISTANCE - 1) * CHUNK_SIZE;
-scene.fog = new THREE.Fog(SKY, fogFar * 0.55, fogFar);
+const fogNear = fogFar * 0.55;
+scene.fog = new THREE.Fog(SKY, fogNear, fogFar);
+
+// Underwater look: tighter, bluer fog so the world gets murky when submerged.
+const UNDERWATER_COLOR = new THREE.Color(0x2a5f9e);
+const SKY_COLOR = new THREE.Color(SKY);
 
 const camera = new THREE.PerspectiveCamera(
   72, window.innerWidth / window.innerHeight, 0.1, (RENDER_DISTANCE + 2) * CHUNK_SIZE);
@@ -117,11 +122,35 @@ function start() {
 
     fpsAcc += dt; fpsFrames++;
     if (fpsAcc >= 0.5) { fps = Math.round(fpsFrames / fpsAcc); fpsAcc = 0; fpsFrames = 0; }
+    updateUnderwater();
     updateDebug();
 
     requestAnimationFrame(loop);
   };
   loop();
+}
+
+// Show a blue tint + murky fog whenever the camera (eye) is inside water.
+const underwaterEl = document.getElementById("underwater");
+let wasUnderwater = false;
+function updateUnderwater() {
+  const c = camera.position;
+  const block = world.getBlock(Math.floor(c.x), Math.floor(c.y), Math.floor(c.z));
+  const submerged = block === BLOCK.WATER;
+  if (submerged === wasUnderwater) return;
+  wasUnderwater = submerged;
+  underwaterEl.classList.toggle("active", submerged);
+  if (submerged) {
+    scene.fog.color.copy(UNDERWATER_COLOR);
+    scene.fog.near = 0.1;
+    scene.fog.far = 26;
+    scene.background.copy(UNDERWATER_COLOR);
+  } else {
+    scene.fog.color.copy(SKY_COLOR);
+    scene.fog.near = fogNear;
+    scene.fog.far = fogFar;
+    scene.background.copy(SKY_COLOR);
+  }
 }
 
 function updateDebug() {

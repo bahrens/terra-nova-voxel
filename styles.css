@@ -12,6 +12,20 @@ html, body {
 
 #game { display: block; width: 100vw; height: 100vh; }
 
+/* Underwater tint — a translucent blue wash over the whole view while submerged */
+#underwater {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s ease;
+  background:
+    radial-gradient(ellipse at center, rgba(30,90,150,0.18), rgba(12,45,95,0.42)),
+    rgba(28,86,150,0.32);
+}
+#underwater.active { opacity: 1; }
+
 /* Crosshair */
 #crosshair {
   position: fixed;
