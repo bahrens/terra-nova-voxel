@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terra Nova</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- Crosshair -->
+  <div id="crosshair">
+    <span></span><span></span>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="hotbar"></div>
+  </div>
+
+  <!-- Debug overlay -->
+  <div id="debug"></div>
+
+  <!-- Start / pause menu -->
+  <div id="menu">
+    <div class="panel">
+      <h1>TERRA&nbsp;NOVA</h1>
+      <p class="subtitle">a voxel world</p>
+      <button id="playBtn">Click to Play</button>
+      <ul class="controls">
+        <li><b>WASD</b> — move</li>
+        <li><b>Mouse</b> — look</li>
+        <li><b>Space</b> — jump &nbsp;/&nbsp; <b>Shift</b> — sprint</li>
+        <li><b>Left Click</b> — break block</li>
+        <li><b>Right Click</b> — place block</li>
+        <li><b>1–9</b> or <b>Scroll</b> — select block</li>
+        <li><b>F</b> — fly &nbsp;(<b>Space</b> up / <b>Shift</b> down) &nbsp;/&nbsp; <b>Esc</b> — menu</li>
+      </ul>
+    </div>
+  </div>
+
+  <div id="loading">Generating world…</div>
+
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>

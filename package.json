@@ -1,0 +1,12 @@
+{
+  "name": "terra-nova",
+  "version": "1.0.0",
+  "description": "A browser-based Minecraft-style voxel sandbox built with Three.js.",
+  "type": "module",
+  "scripts": {
+    "start": "npx --yes serve -l 5173 .",
+    "dev": "npx --yes serve -l 5173 ."
+  },
+  "keywords": ["voxel", "minecraft", "threejs", "game", "webgl"],
+  "license": "MIT"
+}
