@@ -201,26 +201,34 @@ export class World {
           } else break;
         }
 
-        // 2) Assign materials top-down. The top of every solid run (air above)
-        //    is a surface block; the next few are subsurface; the rest is stone.
+        // 2) Assign materials top-down. Only the first, sky-exposed solid run
+        //    is the real surface (grass/subsurface). Once we drop below the
+        //    first air gap, everything is shadowed (cave floors, ground under
+        //    overhangs) and stays bare rock — grass/snow don't grow there.
         let depth = 0;
+        let sky = true;
         let surfaceTopY = -1;
         for (let y = top; y >= 0; y--) {
-          if (!solid[y]) { depth = 0; continue; }
+          if (!solid[y]) {
+            if (depth > 0) sky = false; // finished the exposed run; below is in shadow
+            depth = 0;
+            continue;
+          }
           let id;
           if (y === 0) {
             id = BLOCK.BEDROCK;
-          } else if (depth === 0) {
-            // Surface block.
+          } else if (sky && depth === 0) {
+            // Real, sky-exposed surface.
             id = (y <= WATER_LEVEL) ? biome.underwater : biome.surface;
             if (biome.snowCap && y > WATER_LEVEL) {
               if (y + snowJitter > 72) id = BLOCK.SNOW;
               else if (this.detailNoise.noise2(wx * 0.15, wz * 0.15) > 0.28) id = BLOCK.GRAVEL;
             }
             if (surfaceTopY < 0 && y > WATER_LEVEL) surfaceTopY = y;
-          } else if (depth <= 3) {
+          } else if (sky && depth <= 3) {
             id = biome.subsurface;
           } else {
+            // Shadowed rock: cave floors/ceilings and ground beneath overhangs.
             id = this.stoneOrOre(wx, y, wz, hi);
           }
           chunk.set(lx, y, lz, id);
