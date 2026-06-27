@@ -113,7 +113,103 @@ const TILE_PAINTERS = {
     ctx.moveTo(x0 + 11, y0 + 4); ctx.lineTo(x0 + 13, y0 + 6);
     ctx.stroke();
   },
+
+  // ---- biome blocks ----
+  gravel: (ctx, x0, y0, rng) => {
+    fillNoisy(ctx, x0, y0, rng, 0x8c8783, 30);
+    for (let i = 0; i < 7; i++) {
+      ctx.fillStyle = shade(0x5f5b57, Math.floor((rng() - 0.5) * 20));
+      ctx.fillRect(x0 + Math.floor(rng() * 14), y0 + Math.floor(rng() * 14), 2, 2);
+    }
+  },
+  sandstone: (ctx, x0, y0, rng) => {
+    fillNoisy(ctx, x0, y0, rng, 0xddcc8f, 12);
+    ctx.fillStyle = "rgba(160,140,90,.5)";
+    ctx.fillRect(x0, y0 + 4, TILE, 1);
+    ctx.fillRect(x0, y0 + 11, TILE, 1);
+  },
+  sandstone_top: (ctx, x, y, rng) => fillNoisy(ctx, x, y, rng, 0xe4d49a, 12),
+  red_sand: (ctx, x, y, rng) => fillNoisy(ctx, x, y, rng, 0xc06a32, 20),
+  cactus_side: (ctx, x0, y0, rng) => {
+    fillNoisy(ctx, x0, y0, rng, 0x3f7a36, 14);
+    ctx.fillStyle = "rgba(20,60,20,.6)";
+    ctx.fillRect(x0 + 1, y0, 1, TILE);
+    ctx.fillRect(x0 + TILE - 2, y0, 1, TILE);
+    ctx.fillStyle = "rgba(220,240,180,.5)";
+    for (let y = 2; y < TILE; y += 4) ctx.fillRect(x0 + 7, y0 + y, 2, 1);
+  },
+  cactus_top: (ctx, x0, y0, rng) => {
+    fillNoisy(ctx, x0, y0, rng, 0x4a8a3e, 12);
+    ctx.fillStyle = "rgba(20,60,20,.6)";
+    ctx.strokeStyle = "rgba(20,60,20,.6)";
+    ctx.strokeRect(x0 + 2.5, y0 + 2.5, TILE - 5, TILE - 5);
+  },
+  coal_ore: oreTile(0x2b2b2b),
+  iron_ore: oreTile(0xb08a6a),
+  gold_ore: oreTile(0xf4d24a),
+  ice: (ctx, x0, y0, rng) => {
+    fillNoisy(ctx, x0, y0, rng, 0xa9d6ef, 12);
+    ctx.strokeStyle = "rgba(255,255,255,.35)";
+    ctx.beginPath();
+    ctx.moveTo(x0 + 2, y0 + 11); ctx.lineTo(x0 + 9, y0 + 4);
+    ctx.moveTo(x0 + 8, y0 + 14); ctx.lineTo(x0 + 14, y0 + 9);
+    ctx.stroke();
+  },
+
+  // ---- cross-shaped plants (transparent background) ----
+  tall_grass: (ctx, x0, y0, rng) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    for (let x = 1; x < TILE - 1; x++) {
+      if (rng() < 0.45) continue;
+      const h = 5 + Math.floor(rng() * 7);
+      for (let y = 0; y < h; y++) {
+        ctx.fillStyle = shade(0x5fae42, Math.floor((rng() - 0.5) * 44));
+        ctx.fillRect(x0 + x, y0 + (TILE - 1 - y), 1, 1);
+      }
+    }
+  },
+  flower_red: flowerTile("#d6453b"),
+  flower_yellow: flowerTile("#e8c33a"),
+  dead_bush: (ctx, x0, y0, rng) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    const cx = x0 + 8;
+    ctx.fillStyle = "#6e4f24";
+    for (let y = 4; y < TILE - 1; y++) ctx.fillRect(cx, y0 + y, 1, 1);
+    const twig = [[-2, 8], [-3, 7], [2, 9], [3, 8], [-1, 5], [1, 4], [-3, 10], [3, 11]];
+    for (const [dx, dy] of twig) ctx.fillRect(cx + dx, y0 + dy, 1, 1);
+  },
 };
+
+// Stone base with coloured ore speckles.
+function oreTile(spec) {
+  return (ctx, x0, y0, rng) => {
+    fillNoisy(ctx, x0, y0, rng, 0x8a8a8d, 22);
+    for (let i = 0; i < 6; i++) {
+      const bx = x0 + 1 + Math.floor(rng() * 12);
+      const by = y0 + 1 + Math.floor(rng() * 12);
+      ctx.fillStyle = spec;
+      ctx.fillRect(bx, by, 2, 2);
+      ctx.fillRect(bx + 1, by + 2, 1, 1);
+    }
+  };
+}
+
+// Green stem with a coloured blossom on top.
+function flowerTile(color) {
+  return (ctx, x0, y0, rng) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    const cx = x0 + 8;
+    ctx.fillStyle = "#3f8a2e";
+    for (let y = 6; y < TILE - 1; y++) ctx.fillRect(cx, y0 + y, 1, 1);
+    ctx.fillRect(cx - 1, y0 + 10, 1, 1);
+    ctx.fillRect(cx + 1, y0 + 8, 1, 1);
+    ctx.fillStyle = color;
+    ctx.fillRect(cx - 2, y0 + 3, 5, 4);
+    ctx.fillRect(cx - 1, y0 + 2, 3, 1);
+    ctx.fillStyle = "#ffe14d";
+    ctx.fillRect(cx, y0 + 4, 1, 2);
+  };
+}
 
 export class TextureAtlas {
   constructor() {

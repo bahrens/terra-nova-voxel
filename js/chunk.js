@@ -69,6 +69,13 @@ export class Chunk {
           if (id === AIR) continue;
           const def = BLOCKS[id];
           const wx = ox + x, wy = y, wz = oz + z;
+
+          // Cross-shaped plants are billboards, not cubes.
+          if (def.render === "cross") {
+            this.emitCross(buffers.foliage, world, wx, wy, wz, def);
+            continue;
+          }
+
           const target = def.liquid ? buffers.water
             : def.transparent ? buffers.foliage
             : buffers.opaque;
@@ -152,6 +159,31 @@ export class Chunk {
     } else {
       buf.indices.push(baseIndex + 1, baseIndex + 2, baseIndex + 3,
                        baseIndex + 1, baseIndex + 3, baseIndex);
+    }
+  }
+
+  // Emit two diagonal billboard quads forming an "X" (grass tufts, flowers).
+  emitCross(buf, world, wx, wy, wz, def) {
+    const tile = def.faces.side;
+    const [u0, v0, u1, v1] = world.atlas.uv(tile);
+    const b = 0.95; // plants render near full-bright
+    const a = 0.146, c = 0.854; // inset so the X fits inside the cell
+
+    const quads = [
+      [[a, 0, a], [c, 0, c], [c, 1, c], [a, 1, a]],
+      [[a, 0, c], [c, 0, a], [c, 1, a], [a, 1, c]],
+    ];
+    const uvs = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+
+    for (const q of quads) {
+      const base = buf.positions.length / 3;
+      for (let i = 0; i < 4; i++) {
+        buf.positions.push(wx + q[i][0], wy + q[i][1], wz + q[i][2]);
+        buf.normals.push(0, 1, 0);
+        buf.uvs.push(uvs[i][0], uvs[i][1]);
+        buf.colors.push(b, b, b);
+      }
+      buf.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
   }
 

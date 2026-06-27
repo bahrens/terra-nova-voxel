@@ -1,5 +1,9 @@
 // Block definitions. Each block maps its faces to texture tile names.
 // `top` / `bottom` default to `side` when omitted.
+//
+// Render types:
+//   "cube"  (default) — a normal full voxel cube.
+//   "cross" — two diagonal billboard quads (grass tufts, flowers, bushes).
 
 export const AIR = 0;
 
@@ -18,12 +22,29 @@ export const BLOCK = {
   COBBLE: 10,
   BEDROCK: 11,
   SNOW: 12,
+  // --- biome additions ---
+  GRAVEL: 13,
+  SANDSTONE: 14,
+  RED_SAND: 15,
+  CACTUS: 16,
+  COAL_ORE: 17,
+  IRON_ORE: 18,
+  GOLD_ORE: 19,
+  ICE: 20,
+  // cross-shaped plants
+  TALL_GRASS: 21,
+  FLOWER_RED: 22,
+  FLOWER_YELLOW: 23,
+  DEAD_BUSH: 24,
 };
 
 // Per-block definitions.
 //   solid:       blocks movement / collision
 //   transparent: don't cull neighbour faces against it (glass, leaves, water)
 //   opaque:      false for blocks that should not hide faces behind them
+//   render:      "cube" | "cross"
+const PLANT = { solid: false, transparent: true, opaque: false, render: "cross" };
+
 export const BLOCKS = {
   [BLOCK.STONE]:   { name: "Stone",       tiles: { all: "stone" } },
   [BLOCK.DIRT]:    { name: "Dirt",        tiles: { all: "dirt" } },
@@ -37,6 +58,20 @@ export const BLOCKS = {
   [BLOCK.COBBLE]:  { name: "Cobblestone", tiles: { all: "cobble" } },
   [BLOCK.BEDROCK]: { name: "Bedrock",     tiles: { all: "bedrock" } },
   [BLOCK.SNOW]:    { name: "Snow",        tiles: { top: "snow", side: "snow_side", bottom: "dirt" } },
+
+  [BLOCK.GRAVEL]:    { name: "Gravel",     tiles: { all: "gravel" } },
+  [BLOCK.SANDSTONE]: { name: "Sandstone",  tiles: { top: "sandstone_top", side: "sandstone", bottom: "sandstone_top" } },
+  [BLOCK.RED_SAND]:  { name: "Red Sand",   tiles: { all: "red_sand" } },
+  [BLOCK.CACTUS]:    { name: "Cactus",     tiles: { top: "cactus_top", side: "cactus_side", bottom: "cactus_top" }, transparent: true, opaque: false },
+  [BLOCK.COAL_ORE]:  { name: "Coal Ore",   tiles: { all: "coal_ore" } },
+  [BLOCK.IRON_ORE]:  { name: "Iron Ore",   tiles: { all: "iron_ore" } },
+  [BLOCK.GOLD_ORE]:  { name: "Gold Ore",   tiles: { all: "gold_ore" } },
+  [BLOCK.ICE]:       { name: "Ice",        tiles: { all: "ice" } },
+
+  [BLOCK.TALL_GRASS]:    { name: "Tall Grass",    tiles: { all: "tall_grass" },    ...PLANT },
+  [BLOCK.FLOWER_RED]:    { name: "Red Flower",    tiles: { all: "flower_red" },    ...PLANT },
+  [BLOCK.FLOWER_YELLOW]: { name: "Yellow Flower", tiles: { all: "flower_yellow" }, ...PLANT },
+  [BLOCK.DEAD_BUSH]:     { name: "Dead Bush",     tiles: { all: "dead_bush" },     ...PLANT },
 };
 
 // Fill in defaults.
@@ -45,6 +80,7 @@ for (const id in BLOCKS) {
   if (b.solid === undefined) b.solid = true;
   if (b.transparent === undefined) b.transparent = false;
   if (b.opaque === undefined) b.opaque = true;
+  if (b.render === undefined) b.render = "cube";
   const t = b.tiles;
   b.faces = {
     top: t.top || t.side || t.all,
@@ -70,8 +106,13 @@ export function isLiquid(id) {
   return b ? !!b.liquid : false;
 }
 
+export function isCross(id) {
+  const b = BLOCKS[id];
+  return b ? b.render === "cross" : false;
+}
+
 // The blocks offered in the hotbar, in order.
 export const HOTBAR = [
-  BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.COBBLE,
-  BLOCK.SAND, BLOCK.LOG, BLOCK.PLANK, BLOCK.LEAVES, BLOCK.GLASS,
+  BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND,
+  BLOCK.SANDSTONE, BLOCK.LOG, BLOCK.PLANK, BLOCK.LEAVES, BLOCK.GLASS,
 ];
