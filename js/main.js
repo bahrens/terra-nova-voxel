@@ -132,7 +132,7 @@ function updateDebug() {
     `Terra Nova\n` +
     `xyz  ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}\n` +
     `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}\n` +
-    `fps  ${fps}   ${player.flying ? "FLY" : (player.onGround ? "ground" : "air")}\n` +
+    `fps  ${fps}   ${player.flying ? (player.flyFast ? "FLY·fast" : "FLY") : (player.onGround ? "ground" : "air")}\n` +
     `look ${looking}`;
 }
 

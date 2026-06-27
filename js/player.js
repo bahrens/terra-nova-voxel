@@ -27,6 +27,8 @@ export class Player {
     this.pitch = 0;
     this.onGround = false;
     this.flying = false;
+    this.flyFast = false;   // toggled by double-tapping W while flying
+    this.lastWTap = -1e9;
     this.enabled = false;
 
     this.keys = new Set();
@@ -52,8 +54,16 @@ export class Player {
   bindInput() {
     document.addEventListener("keydown", (e) => {
       if (!this.enabled) return;
+      const fresh = !this.keys.has(e.code); // ignore key-repeat events
       this.keys.add(e.code);
-      if (e.code === "KeyF") this.flying = !this.flying;
+      if (!fresh) return;
+      if (e.code === "KeyF") { this.flying = !this.flying; this.flyFast = false; }
+      // Double-tap W toggles fast flight (stays on until toggled off).
+      if (e.code === "KeyW" && this.flying) {
+        const now = performance.now();
+        if (now - this.lastWTap < 300) this.flyFast = !this.flyFast;
+        this.lastWTap = now;
+      }
       if (e.code.startsWith("Digit")) {
         const n = parseInt(e.code.slice(5), 10);
         if (n >= 1 && n <= 9 && this.onSelect) this.onSelect(n - 1, true);
@@ -105,7 +115,7 @@ export class Player {
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
 
     if (this.flying) {
-      const speed = FLY;
+      const speed = FLY * (this.flyFast ? 2.6 : 1);
       this.velocity.x = wish.x * speed;
       this.velocity.z = wish.z * speed;
       let vy = 0;
