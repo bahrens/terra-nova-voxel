@@ -23,7 +23,8 @@ const SURF_AMP = 6;        // how far the surface boundary is pushed by 3D noise
 const OVERHANG_AMP = 4;    // low-frequency term that creates cliffs/overhangs
 const CAVE_TUBE = 0.018;   // tunnel radius² — larger = wider/more tunnels
 const CAVE_ROOM = 0.66;    // cavern threshold — lower = more open caverns
-const CAVE_CEIL = 4;       // keep this many solid blocks below the surface uncarved
+const CAVE_CEIL = 1;       // keep this many solid blocks below the surface uncarved
+                          // (low -> caves open onto cliffs/hillsides as entrances)
 
 function hash2(x, z) {
   let h = Math.imul(x | 0, 374761393) ^ Math.imul(z | 0, 668265263);
@@ -185,6 +186,19 @@ export class World {
           if (s && this.caveAt(wx, y, wz, hi)) s = 0;
           if (y === 0) s = 1; // guaranteed bedrock floor, no void holes
           solid[y] = s;
+        }
+
+        // 1b) Open thin cave roofs at the surface into clean entrances rather
+        //     than leaving 1-2 block caps floating over the void below.
+        for (let pass = 0; pass < 4; pass++) {
+          let y0 = -1;
+          for (let y = top; y >= 0; y--) { if (solid[y]) { y0 = y; break; } }
+          if (y0 <= 5) break;
+          let thick = 0, y = y0;
+          while (y >= 0 && solid[y]) { thick++; y--; }
+          if (thick <= 2 && y > 4) {
+            for (let k = y0; k > y; k--) solid[k] = 0;
+          } else break;
         }
 
         // 2) Assign materials top-down. The top of every solid run (air above)
