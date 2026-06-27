@@ -97,10 +97,10 @@ export class World {
     const cont = nz(this.heightNoise.fbm2(wx * 0.004, wz * 0.004, 4, 2, 0.5));  // continents
     const hills = this.heightNoise.fbm2(wx * 0.02, wz * 0.02, 3, 2, 0.5);        // local bumps
     // Large-scale mask so mountains cluster into ranges instead of spikes.
-    const mask = Math.max(0, nz(this.detailNoise.fbm2(wx * 0.0015, wz * 0.0015, 2, 2, 0.5)));
-    const peak = Math.pow(mask, 1.7);
-    const h = WATER_LEVEL + 2 + cont * 12 + hills * 6 + peak * 52;
-    return Math.max(1, Math.min(WORLD_HEIGHT - 9, Math.floor(h)));
+    const mask = Math.max(0, (nz(this.detailNoise.fbm2(wx * 0.0016, wz * 0.0016, 2, 2, 0.5)) + 0.25) / 1.25);
+    const peak = Math.pow(mask, 1.8);
+    const h = WATER_LEVEL + 2 + cont * 12 + hills * 6 + peak * 64;
+    return Math.max(1, Math.min(WORLD_HEIGHT - 3, Math.floor(h)));
   }
 
   climate(noise, wx, wz) {
@@ -126,7 +126,7 @@ export class World {
             id = BLOCK.BEDROCK;
           } else if (y === height) {
             id = underwater ? biome.underwater : biome.surface;
-            if (biome.snowCap && height > 64) id = BLOCK.SNOW;
+            if (biome.snowCap && height > 70) id = BLOCK.SNOW;
           } else if (y >= height - 3) {
             id = biome.subsurface;
           } else {

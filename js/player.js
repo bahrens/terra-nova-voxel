@@ -256,7 +256,7 @@ export class Player {
   // Drop the player onto the surface at spawn.
   spawnAt(x, z) {
     let top = 0;
-    for (let y = 78; y > 0; y--) {
+    for (let y = 120; y > 0; y--) {
       if (isSolid(this.world.getBlock(x, y, z))) { top = y + 1; break; }
     }
     this.position.set(x + 0.5, top + 0.5, z + 0.5);

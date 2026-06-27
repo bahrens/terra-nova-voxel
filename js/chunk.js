@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { AIR, BLOCKS, isOpaque, isLiquid } from "./blocks.js";
 
 export const CHUNK_SIZE = 16;
-export const WORLD_HEIGHT = 80;
+export const WORLD_HEIGHT = 96;
 export const WATER_LEVEL = 26;
 
 // Face base brightness (fake directional light).

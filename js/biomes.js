@@ -68,7 +68,7 @@ export const BIOME = {
 export function pickBiome(temp, humidity, height, waterLevel) {
   if (height <= waterLevel - 1) return BIOME.OCEAN;
   if (height <= waterLevel + 1) return BIOME.BEACH;
-  if (height >= 60) return BIOME.MOUNTAIN;
+  if (height >= 56) return BIOME.MOUNTAIN;
 
   if (temp < -0.35) return BIOME.TUNDRA;
   if (temp > 0.35 && humidity < -0.05) return BIOME.DESERT;
