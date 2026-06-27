@@ -107,7 +107,11 @@ export class World {
     const cont = nz(this.heightNoise.fbm2(wxw * 0.0014, wzw * 0.0014, 3, 2, 0.5)); // land vs sea
     const erosion = nz(this.detailNoise.fbm2(wxw * 0.0032, wzw * 0.0032, 2, 2, 0.5));
     const mask = smoothstep(0.0, 0.7, erosion);                                    // where mountains rise
-    const ridge = this.detailNoise.ridged2(wxw * 0.011, wzw * 0.011, 4, 2, 0.5);   // crests
+    // Ridged crests, blended with smooth fBm so peaks are broad ridgelines
+    // rather than needle-sharp spikes.
+    let ridge = this.detailNoise.ridged2(wxw * 0.008, wzw * 0.008, 3, 2, 0.5);
+    const rounding = this.heightNoise.fbm2(wxw * 0.008, wzw * 0.008, 2, 2, 0.5) * 0.5 + 0.5;
+    ridge = 0.72 * ridge + 0.28 * rounding;
     const detail = this.heightNoise.fbm2(wx * 0.03, wz * 0.03, 3, 2, 0.5);         // surface bumps
 
     const h = WATER_LEVEL + 5 + cont * 22 + mask * ridge * 82 + detail * 4;
@@ -128,7 +132,11 @@ export class World {
         const height = this.columnHeight(wx, wz);
         const temp = this.climate(this.tempNoise, wx, wz);
         const humidity = this.climate(this.humidityNoise, wx, wz);
-        const biome = pickBiome(temp, humidity, height, WATER_LEVEL);
+        // Per-column jitter so the rock line and snow line wobble by a few
+        // blocks instead of forming dead-straight contour bands.
+        const rockJitter = this.warpNoise.noise2(wx * 0.06, wz * 0.06) * 6;
+        const snowJitter = this.detailNoise.noise2(wx * 0.07 + 20, wz * 0.07) * 6;
+        const biome = pickBiome(temp, humidity, height, WATER_LEVEL, height + rockJitter);
         const underwater = height <= WATER_LEVEL;
 
         for (let y = 0; y <= height; y++) {
@@ -137,7 +145,10 @@ export class World {
             id = BLOCK.BEDROCK;
           } else if (y === height) {
             id = underwater ? biome.underwater : biome.surface;
-            if (biome.snowCap && height > 72) id = BLOCK.SNOW;
+            if (biome.snowCap) {
+              if (height + snowJitter > 72) id = BLOCK.SNOW;
+              else if (this.detailNoise.noise2(wx * 0.15, wz * 0.15) > 0.28) id = BLOCK.GRAVEL; // scree
+            }
           } else if (y >= height - 3) {
             id = biome.subsurface;
           } else {

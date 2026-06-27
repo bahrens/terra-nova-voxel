@@ -64,11 +64,13 @@ export const BIOME = {
 };
 
 // Choose a biome from climate + elevation. Height/water decide the broad zone;
-// temperature/humidity decide the land biome.
-export function pickBiome(temp, humidity, height, waterLevel) {
+// temperature/humidity decide the land biome. `mountainElev` is the elevation
+// used for the rock-line test — pass height + noise jitter so the boundary
+// wobbles naturally instead of following an exact contour.
+export function pickBiome(temp, humidity, height, waterLevel, mountainElev = height) {
   if (height <= waterLevel - 1) return BIOME.OCEAN;
   if (height <= waterLevel + 1) return BIOME.BEACH;
-  if (height >= 56) return BIOME.MOUNTAIN;
+  if (mountainElev >= 56) return BIOME.MOUNTAIN;
 
   if (temp < -0.35) return BIOME.TUNDRA;
   if (temp > 0.35 && humidity < -0.05) return BIOME.DESERT;
