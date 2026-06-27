@@ -59,6 +59,7 @@ export class World {
     this.caveNoiseC = new Noise(seed * 307 + 17);
     // Reusable per-column solidity scratch buffer (avoids per-column allocation).
     this._col = new Uint8Array(WORLD_HEIGHT);
+    this._freeze = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE); // per-column "freezes" flag
 
     this.atlas = new TextureAtlas();
     this.materials = this.buildMaterials();
@@ -276,6 +277,7 @@ export class World {
         const rockJitter = this.warpNoise.noise2(wx * 0.06, wz * 0.06) * 6;
         const snowJitter = this.detailNoise.noise2(wx * 0.07 + 20, wz * 0.07) * 6;
         const biome = pickBiome(temp, humidity, hi, WATER_LEVEL, hi + rockJitter);
+        this._freeze[lx + lz * CHUNK_SIZE] = biome.freezesWater ? 1 : 0;
 
         // 1) Build the column solidity from the 3D density field, minus caves.
         //    Always cover at least up to sea level so the water pass reads valid data.
@@ -334,29 +336,68 @@ export class World {
           depth++;
         }
 
-        // 3) Water: fill every air cell from sea level down through the
-        //    near-surface band (down to just below the base terrain height).
-        //    Unlike a per-column "stop at first solid", this also fills the
-        //    pockets tucked under underwater overhangs and shelves. Deep,
-        //    disconnected caverns below the base height stay dry — full
-        //    connectivity + dynamic flow come with the water simulation later.
-        const waterFloor = Math.max(0, hi - 3);
-        for (let y = WATER_LEVEL; y >= waterFloor; y--) {
-          if (solid[y]) continue;
-          const ice = biome.freezesWater && y === WATER_LEVEL;
-          chunk.set(lx, y, lz, ice ? BLOCK.ICE : BLOCK.WATER);
-          if (!ice) chunk.setW(lx, y, lz, WATER_SOURCE); // generated water is a source
-        }
-
-        // 4) Decorate the highest land surface (if any).
+        // 3) Decorate the highest land surface (if any).
         if (surfaceTopY > WATER_LEVEL) {
           this.decorate(chunk, biome, lx, surfaceTopY, lz, wx, wz);
         }
       }
     }
+
+    // 4) Flood-fill water: fill all air connected to the open sea surface, at
+    //    any depth (under overhangs, into ocean-connected caves). Enclosed
+    //    caves stay dry. Then freeze the top layer in cold biomes.
+    this.floodWater(chunk);
+    this.capIce(chunk);
+
     chunk.dirty = true;
     this.chunks.set(key(cx, cz), chunk);
     return chunk;
+  }
+
+  // Breadth-first flood from open-sky water-surface cells through connected air
+  // at or below sea level. Generated water is all "source" (stable, full).
+  floodWater(chunk) {
+    const stack = [];
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        if (chunk.get(lx, WATER_LEVEL, lz) === AIR &&
+            chunk.get(lx, WATER_LEVEL + 1, lz) === AIR) {
+          chunk.set(lx, WATER_LEVEL, lz, BLOCK.WATER);
+          chunk.setW(lx, WATER_LEVEL, lz, WATER_SOURCE);
+          stack.push(lx, WATER_LEVEL, lz);
+        }
+      }
+    }
+    while (stack.length) {
+      const z = stack.pop(), y = stack.pop(), x = stack.pop();
+      this.floodStep(chunk, stack, x + 1, y, z);
+      this.floodStep(chunk, stack, x - 1, y, z);
+      this.floodStep(chunk, stack, x, y, z + 1);
+      this.floodStep(chunk, stack, x, y, z - 1);
+      this.floodStep(chunk, stack, x, y - 1, z);
+      this.floodStep(chunk, stack, x, y + 1, z);
+    }
+  }
+
+  floodStep(chunk, stack, x, y, z) {
+    if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) return;
+    if (y < 0 || y > WATER_LEVEL) return;
+    if (chunk.get(x, y, z) !== AIR) return;
+    chunk.set(x, y, z, BLOCK.WATER);
+    chunk.setW(x, y, z, WATER_SOURCE);
+    stack.push(x, y, z);
+  }
+
+  capIce(chunk) {
+    for (let lz = 0; lz < CHUNK_SIZE; lz++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        if (this._freeze[lx + lz * CHUNK_SIZE] &&
+            chunk.get(lx, WATER_LEVEL, lz) === BLOCK.WATER) {
+          chunk.set(lx, WATER_LEVEL, lz, BLOCK.ICE);
+          chunk.setW(lx, WATER_LEVEL, lz, 0);
+        }
+      }
+    }
   }
 
   // Returns stone, occasionally replaced by ore based on depth.
