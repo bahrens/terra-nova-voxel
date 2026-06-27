@@ -114,10 +114,14 @@ const clock = new THREE.Clock();
 let fpsAcc = 0, fpsFrames = 0, fps = 0;
 
 function start() {
+  let waterAccum = 0;
   const loop = () => {
     const dt = clock.getDelta();
     if (player.enabled) player.update(dt);
     world.update(player.position);
+    // Step the fluid sim a few times a second so flow animates over ticks.
+    waterAccum += dt;
+    if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }
     renderer.render(scene, camera);
 
     fpsAcc += dt; fpsFrames++;

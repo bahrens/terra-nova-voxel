@@ -241,7 +241,8 @@ export class Player {
     const px = hit.x + hit.normal.x;
     const py = hit.y + hit.normal.y;
     const pz = hit.z + hit.normal.z;
-    if (this.world.getBlock(px, py, pz) !== 0) return;
+    const tgt = this.world.getBlock(px, py, pz);
+    if (tgt !== 0 && tgt !== BLOCK.WATER) return; // can build into air or displace water
     if (this.overlapsPlayer(px, py, pz)) return;
     this.world.setBlock(px, py, pz, this.placeId);
   }

@@ -3,7 +3,7 @@
 import * as THREE from "three";
 import { Chunk, CHUNK_SIZE, WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
 import { Noise } from "./noise.js";
-import { BLOCK, AIR } from "./blocks.js";
+import { BLOCK, AIR, isSolid } from "./blocks.js";
 import { pickBiome } from "./biomes.js";
 import { TextureAtlas } from "./textures.js";
 
@@ -25,6 +25,10 @@ const CAVE_TUBE = 0.018;   // tunnel radius² — larger = wider/more tunnels
 const CAVE_ROOM = 0.66;    // cavern threshold — lower = more open caverns
 const CAVE_CEIL = 1;       // keep this many solid blocks below the surface uncarved
                           // (low -> caves open onto cliffs/hillsides as entrances)
+
+// Water simulation.
+const WATER_SOURCE = 9;   // permanent full-water level (oceans/lakes)
+const WATER_FULL = 8;     // a full flowing block; horizontal flow decays from here
 
 function hash2(x, z) {
   let h = Math.imul(x | 0, 374761393) ^ Math.imul(z | 0, 668265263);
@@ -61,6 +65,7 @@ export class World {
 
     this.genQueue = [];
     this.meshQueue = [];
+    this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
   }
 
   buildMaterials() {
@@ -94,6 +99,7 @@ export class World {
     if (!chunk) return;
     const lx = x - cx * CHUNK_SIZE, lz = z - cz * CHUNK_SIZE;
     chunk.set(lx, y, lz, id);
+    chunk.setW(lx, y, lz, 0); // the cell's standing water is cleared by the edit
     if (!remesh) return;
     chunk.dirty = true;
     this.queueMesh(chunk);
@@ -102,6 +108,99 @@ export class World {
     if (lx === CHUNK_SIZE - 1) this.markNeighbor(cx + 1, cz);
     if (lz === 0) this.markNeighbor(cx, cz - 1);
     if (lz === CHUNK_SIZE - 1) this.markNeighbor(cx, cz + 1);
+    // Wake the fluid so it flows into a broken block / re-settles around a placed one.
+    this.enqueueWaterAround(x, y, z);
+  }
+
+  // ---- Water simulation ----
+  getWaterLevel(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return 0;
+    return chunk.getW(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
+  enqueueWater(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    this.waterActive.add(x + "," + y + "," + z);
+  }
+
+  enqueueWaterAround(x, y, z) {
+    this.enqueueWater(x, y, z);
+    this.enqueueWater(x, y + 1, z);
+    this.enqueueWater(x, y - 1, z);
+    this.enqueueWater(x + 1, y, z);
+    this.enqueueWater(x - 1, y, z);
+    this.enqueueWater(x, y, z + 1);
+    this.enqueueWater(x, y, z - 1);
+  }
+
+  setWaterCell(x, y, z, level) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return;
+    const lx = x - cx * CHUNK_SIZE, lz = z - cz * CHUNK_SIZE;
+    const wasWater = chunk.get(lx, y, lz) === BLOCK.WATER;
+    if (level > 0) {
+      chunk.set(lx, y, lz, BLOCK.WATER);
+      chunk.setW(lx, y, lz, level);
+    } else {
+      if (wasWater) chunk.set(lx, y, lz, AIR);
+      chunk.setW(lx, y, lz, 0);
+    }
+    chunk.dirty = true;
+    this.queueMesh(chunk);
+    if (lx === 0) this.markNeighbor(cx - 1, cz);
+    if (lx === CHUNK_SIZE - 1) this.markNeighbor(cx + 1, cz);
+    if (lz === 0) this.markNeighbor(cx, cz - 1);
+    if (lz === CHUNK_SIZE - 1) this.markNeighbor(cx, cz + 1);
+  }
+
+  // Process a bounded number of queued cells. New changes enqueue their
+  // neighbours, so flows animate across successive ticks.
+  simulateWater(maxOps = 1500) {
+    if (this.waterActive.size === 0) return;
+    const batch = [];
+    for (const k of this.waterActive) {
+      batch.push(k);
+      if (batch.length >= maxOps) break;
+    }
+    for (const k of batch) this.waterActive.delete(k);
+    for (const k of batch) {
+      const c = k.split(",");
+      this.updateWaterCell(+c[0], +c[1], +c[2]);
+    }
+  }
+
+  updateWaterCell(x, y, z) {
+    const id = this.getBlock(x, y, z);
+    if (id !== AIR && id !== BLOCK.WATER) return;   // solid cells hold no water
+    const cur = this.getWaterLevel(x, y, z);
+    if (cur === WATER_SOURCE) return;               // sources are permanent
+
+    let target = 0;
+    if (this.getWaterLevel(x, y + 1, z) > 0) {
+      target = WATER_FULL;                          // water above -> we fill fully (falling/submerged)
+    } else {
+      const N = [[x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1]];
+      for (const [nx, ny, nz] of N) {
+        const nl = this.getWaterLevel(nx, ny, nz);
+        if (nl <= 0) continue;
+        if (nl === WATER_SOURCE) { if (WATER_FULL - 1 > target) target = WATER_FULL - 1; continue; }
+        // A flowing neighbour spreads sideways only if it rests on solid ground.
+        // Water with air/water below it is mid-fall and feeds only downward, so
+        // waterfalls stay narrow instead of sheeting out at every height.
+        if (!isSolid(this.getBlock(nx, ny - 1, nz))) continue;
+        if (nl - 1 > target) target = nl - 1;
+      }
+    }
+
+    if (target !== cur) {
+      this.setWaterCell(x, y, z, target);
+      this.enqueueWaterAround(x, y, z);
+    }
   }
 
   markNeighbor(cx, cz) {
@@ -246,6 +345,7 @@ export class World {
           if (solid[y]) continue;
           const ice = biome.freezesWater && y === WATER_LEVEL;
           chunk.set(lx, y, lz, ice ? BLOCK.ICE : BLOCK.WATER);
+          if (!ice) chunk.setW(lx, y, lz, WATER_SOURCE); // generated water is a source
         }
 
         // 4) Decorate the highest land surface (if any).

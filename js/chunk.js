@@ -33,8 +33,21 @@ export class Chunk {
     this.cx = cx;
     this.cz = cz;
     this.data = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * WORLD_HEIGHT);
+    // Parallel water-level field for the fluid simulation: 0 none, 1-8 flowing,
+    // 9 = source. Only meaningful where data[idx] === WATER.
+    this.water = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * WORLD_HEIGHT);
     this.dirty = true;
     this.meshes = null; // { opaque, foliage, water } THREE.Mesh
+  }
+
+  getW(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    return this.water[Chunk.idx(x, y, z)];
+  }
+
+  setW(x, y, z, v) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    this.water[Chunk.idx(x, y, z)] = v;
   }
 
   static idx(x, y, z) {
