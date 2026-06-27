@@ -7,7 +7,7 @@ import { CHUNK_SIZE } from "./chunk.js";
 import { HOTBAR, BLOCKS } from "./blocks.js";
 
 const SKY = 0x9ad0f0;
-const RENDER_DISTANCE = 7;
+const RENDER_DISTANCE = 10;
 
 const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -17,8 +17,9 @@ renderer.setClearColor(SKY);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(SKY);
-const fogFar = (RENDER_DISTANCE - 0.5) * CHUNK_SIZE;
-scene.fog = new THREE.Fog(SKY, fogFar * 0.45, fogFar);
+// Keep distant terrain visible: fog only bites near the edge of view range.
+const fogFar = (RENDER_DISTANCE - 1) * CHUNK_SIZE;
+scene.fog = new THREE.Fog(SKY, fogFar * 0.55, fogFar);
 
 const camera = new THREE.PerspectiveCamera(
   72, window.innerWidth / window.innerHeight, 0.1, (RENDER_DISTANCE + 2) * CHUNK_SIZE);

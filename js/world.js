@@ -12,6 +12,10 @@ const floorDiv = (a, b) => Math.floor(a / b);
 // fBm output has std ~0.15 and a practical max near 0.55; normalise to ~[-1,1].
 const nz = (v) => Math.max(-1, Math.min(1, v / 0.55));
 const CLIMATE_SPREAD = 1.7;
+const smoothstep = (a, b, x) => {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+};
 
 function hash2(x, z) {
   let h = Math.imul(x | 0, 374761393) ^ Math.imul(z | 0, 668265263);
@@ -34,6 +38,7 @@ export class World {
     this.tempNoise = new Noise(seed * 7 + 11);
     this.humidityNoise = new Noise(seed * 17 + 3);
     this.detailNoise = new Noise(seed * 13 + 5);
+    this.warpNoise = new Noise(seed * 31 + 7);
 
     this.atlas = new TextureAtlas();
     this.materials = this.buildMaterials();
@@ -94,13 +99,19 @@ export class World {
 
   // ---- Terrain generation ----
   columnHeight(wx, wz) {
-    const cont = nz(this.heightNoise.fbm2(wx * 0.004, wz * 0.004, 4, 2, 0.5));  // continents
-    const hills = this.heightNoise.fbm2(wx * 0.02, wz * 0.02, 3, 2, 0.5);        // local bumps
-    // Large-scale mask so mountains cluster into ranges instead of spikes.
-    const mask = Math.max(0, (nz(this.detailNoise.fbm2(wx * 0.0016, wz * 0.0016, 2, 2, 0.5)) + 0.25) / 1.25);
-    const peak = Math.pow(mask, 1.8);
-    const h = WATER_LEVEL + 2 + cont * 12 + hills * 6 + peak * 64;
-    return Math.max(1, Math.min(WORLD_HEIGHT - 3, Math.floor(h)));
+    // Domain warp the sample point so coastlines and ranges wind naturally.
+    const wxw = wx + 34 * this.warpNoise.noise2(wx * 0.004 + 50, wz * 0.004);
+    const wzw = wz + 34 * this.warpNoise.noise2(wx * 0.004, wz * 0.004 + 50);
+
+    // Layered model: continents -> mountain mask -> sharp ridges -> roughness.
+    const cont = nz(this.heightNoise.fbm2(wxw * 0.0014, wzw * 0.0014, 3, 2, 0.5)); // land vs sea
+    const erosion = nz(this.detailNoise.fbm2(wxw * 0.0032, wzw * 0.0032, 2, 2, 0.5));
+    const mask = smoothstep(0.0, 0.7, erosion);                                    // where mountains rise
+    const ridge = this.detailNoise.ridged2(wxw * 0.011, wzw * 0.011, 4, 2, 0.5);   // crests
+    const detail = this.heightNoise.fbm2(wx * 0.03, wz * 0.03, 3, 2, 0.5);         // surface bumps
+
+    const h = WATER_LEVEL + 5 + cont * 22 + mask * ridge * 82 + detail * 4;
+    return Math.max(1, Math.min(WORLD_HEIGHT - 2, Math.floor(h)));
   }
 
   climate(noise, wx, wz) {
@@ -126,7 +137,7 @@ export class World {
             id = BLOCK.BEDROCK;
           } else if (y === height) {
             id = underwater ? biome.underwater : biome.surface;
-            if (biome.snowCap && height > 70) id = BLOCK.SNOW;
+            if (biome.snowCap && height > 72) id = BLOCK.SNOW;
           } else if (y >= height - 3) {
             id = biome.subsurface;
           } else {
@@ -240,7 +251,7 @@ export class World {
   }
 
   // ---- Streaming around the player ----
-  update(playerPos, budget = { gen: 2, mesh: 3 }) {
+  update(playerPos, budget = { gen: 3, mesh: 4 }) {
     const pcx = floorDiv(playerPos.x, CHUNK_SIZE);
     const pcz = floorDiv(playerPos.z, CHUNK_SIZE);
     const R = this.renderDistance;

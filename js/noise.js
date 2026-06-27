@@ -68,4 +68,20 @@ export class Noise {
     }
     return sum / norm;
   }
+
+  // Ridged multifractal noise — sharp ridgelines, output ~[0, 1].
+  // Great for mountain crests where fBm just gives rounded blobs.
+  ridged2(x, y, octaves = 4, lacunarity = 2, gain = 0.5) {
+    let amp = 0.5, freq = 1, sum = 0, weight = 1;
+    for (let i = 0; i < octaves; i++) {
+      let v = 1 - Math.abs(this.noise2(x * freq, y * freq));
+      v *= v;            // sharpen the ridge
+      v *= weight;       // feedback: detail concentrates on existing ridges
+      weight = Math.max(0, Math.min(1, v * 2.5));
+      sum += v * amp;
+      amp *= gain;
+      freq *= lacunarity;
+    }
+    return sum;
+  }
 }
