@@ -4,10 +4,10 @@
 import * as THREE from "three";
 import { AIR, BLOCK, BLOCKS, isOpaque, isLiquid } from "./blocks.js";
 
-// Rendered top height of a water cell. Submerged cells are full; a surface
-// source sits slightly below the block top; flowing water tapers with level.
-function fluidHeight(level, above) {
-  if (above) return 1.0;
+// Rendered top height of an *open* (air above) water cell: a surface source
+// sits slightly below the block top; flowing water tapers with its level.
+// Cells capped by water or solid above always render full height (1.0).
+function surfaceHeight(level) {
   if (level >= 9) return 0.875;          // source
   return Math.max(0.12, (level / 8) * 0.85); // flowing 1-8
 }
@@ -231,14 +231,15 @@ export class Chunk {
   emitWaterCell(buf, world, wx, wy, wz) {
     const W = BLOCK.WATER;
     const lvl = world.getWaterLevel(wx, wy, wz);
-    const aboveId = world.getBlock(wx, wy + 1, wz);
-    const above = aboveId === W;
-    const sh = fluidHeight(lvl, above);
+    // Only an *air* gap above makes a visible, lowered surface. Water or solid
+    // (an underwater ceiling/overhang) above means the cell is full height.
+    const openTop = world.getBlock(wx, wy + 1, wz) === AIR;
+    const sh = openTop ? surfaceHeight(lvl) : 1.0;
     const [u0, v0, u1, v1] = world.atlas.uv("water");
     const UV = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
 
-    // Top surface (only where not covered by water/solid above).
-    if (!above && !isOpaque(aboveId)) {
+    // Top surface only where open to air above.
+    if (openTop) {
       const y = wy + sh;
       this.pushQuad(buf, [[wx, y, wz], [wx + 1, y, wz], [wx + 1, y, wz + 1], [wx, y, wz + 1]],
         UV, FACE_LIGHT.top);
@@ -258,8 +259,8 @@ export class Chunk {
       if (isOpaque(nb)) continue;
       let by = 0;
       if (nb === W) {
-        const nAbove = world.getBlock(wx + dx, wy + 1, wz + dz) === W;
-        const nsh = fluidHeight(world.getWaterLevel(wx + dx, wy, wz + dz), nAbove);
+        const nOpen = world.getBlock(wx + dx, wy + 1, wz + dz) === AIR;
+        const nsh = nOpen ? surfaceHeight(world.getWaterLevel(wx + dx, wy, wz + dz)) : 1.0;
         if (sh - nsh <= 1e-4) continue;  // neighbour same height or taller -> hidden
         by = nsh;                         // draw only the exposed step
       }
