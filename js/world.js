@@ -76,9 +76,11 @@ export class World {
     const foliage = new THREE.MeshBasicMaterial({
       map, vertexColors: true, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide,
     });
+    // depthWrite:true so overlapping water faces from different chunk meshes
+    // don't cumulatively blend (which produced darker seams at chunk borders).
     const water = new THREE.MeshBasicMaterial({
-      map, vertexColors: true, transparent: true, opacity: 0.72,
-      depthWrite: false, side: THREE.DoubleSide,
+      map, vertexColors: true, transparent: true, opacity: 0.78,
+      depthWrite: true, side: THREE.DoubleSide,
     });
     return { opaque, foliage, water };
   }
