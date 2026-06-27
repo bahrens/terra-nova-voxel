@@ -17,6 +17,14 @@ const smoothstep = (a, b, x) => {
   return t * t * (3 - 2 * t);
 };
 
+// 3D terrain tuning.
+const SURF_BAND = 12;      // vertical band (± base height) where 3D noise sculpts the surface
+const SURF_AMP = 6;        // how far the surface boundary is pushed by 3D noise
+const OVERHANG_AMP = 4;    // low-frequency term that creates cliffs/overhangs
+const CAVE_TUBE = 0.018;   // tunnel radius² — larger = wider/more tunnels
+const CAVE_ROOM = 0.66;    // cavern threshold — lower = more open caverns
+const CAVE_CEIL = 4;       // keep this many solid blocks below the surface uncarved
+
 function hash2(x, z) {
   let h = Math.imul(x | 0, 374761393) ^ Math.imul(z | 0, 668265263);
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -39,6 +47,13 @@ export class World {
     this.humidityNoise = new Noise(seed * 17 + 3);
     this.detailNoise = new Noise(seed * 13 + 5);
     this.warpNoise = new Noise(seed * 31 + 7);
+    // 3D fields: surface density perturbation + two cave systems.
+    this.surfaceNoise = new Noise(seed * 53 + 1);
+    this.caveNoiseA = new Noise(seed * 101 + 9);
+    this.caveNoiseB = new Noise(seed * 211 + 13);
+    this.caveNoiseC = new Noise(seed * 307 + 17);
+    // Reusable per-column solidity scratch buffer (avoids per-column allocation).
+    this._col = new Uint8Array(WORLD_HEIGHT);
 
     this.atlas = new TextureAtlas();
     this.materials = this.buildMaterials();
@@ -98,24 +113,48 @@ export class World {
   }
 
   // ---- Terrain generation ----
-  columnHeight(wx, wz) {
+  // Broad 2D shape: continents, mountain ranges, ridges. Returns a float so the
+  // 3D surface band can sculpt around it. This is the *target* surface height;
+  // the 3D density field perturbs the actual solid/air boundary around it.
+  baseHeight(wx, wz) {
     // Domain warp the sample point so coastlines and ranges wind naturally.
     const wxw = wx + 34 * this.warpNoise.noise2(wx * 0.004 + 50, wz * 0.004);
     const wzw = wz + 34 * this.warpNoise.noise2(wx * 0.004, wz * 0.004 + 50);
 
-    // Layered model: continents -> mountain mask -> sharp ridges -> roughness.
     const cont = nz(this.heightNoise.fbm2(wxw * 0.0014, wzw * 0.0014, 3, 2, 0.5)); // land vs sea
     const erosion = nz(this.detailNoise.fbm2(wxw * 0.0032, wzw * 0.0032, 2, 2, 0.5));
     const mask = smoothstep(0.0, 0.7, erosion);                                    // where mountains rise
-    // Ridged crests, blended with smooth fBm so peaks are broad ridgelines
-    // rather than needle-sharp spikes.
     let ridge = this.detailNoise.ridged2(wxw * 0.008, wzw * 0.008, 3, 2, 0.5);
     const rounding = this.heightNoise.fbm2(wxw * 0.008, wzw * 0.008, 2, 2, 0.5) * 0.5 + 0.5;
     ridge = 0.72 * ridge + 0.28 * rounding;
-    const detail = this.heightNoise.fbm2(wx * 0.03, wz * 0.03, 3, 2, 0.5);         // surface bumps
+    const detail = this.heightNoise.fbm2(wx * 0.03, wz * 0.03, 3, 2, 0.5);
 
     const h = WATER_LEVEL + 5 + cont * 22 + mask * ridge * 82 + detail * 4;
-    return Math.max(1, Math.min(WORLD_HEIGHT - 2, Math.floor(h)));
+    return Math.max(1, Math.min(WORLD_HEIGHT - 2, h));
+  }
+
+  // True if the voxel is solid terrain (before caves). Inside a vertical band
+  // around the base height, a 3D noise field pushes the solid/air boundary in
+  // and out — this is what removes contour terracing and grows cliffs/overhangs.
+  terrainSolid(wx, wy, wz, h) {
+    if (wy > h + SURF_BAND) return false;
+    if (wy <= h - SURF_BAND) return true;
+    const n = this.surfaceNoise.noise3(wx * 0.045, wy * 0.05, wz * 0.045);
+    const big = this.surfaceNoise.noise3(wx * 0.018 + 9, wy * 0.022, wz * 0.018);
+    const density = (h - wy) + n * SURF_AMP + big * OVERHANG_AMP;
+    return density > 0;
+  }
+
+  // True if this underground voxel should be carved into a cave.
+  caveAt(wx, wy, wz, hi) {
+    if (wy < 5 || wy > hi - CAVE_CEIL) return false;
+    // Spaghetti tunnels: where two noise fields are both near zero -> a tube.
+    const t1 = this.caveNoiseA.noise3(wx * 0.028, wy * 0.046, wz * 0.028);
+    const t2 = this.caveNoiseB.noise3(wx * 0.028, wy * 0.046, wz * 0.028);
+    if (t1 * t1 + t2 * t2 < CAVE_TUBE) return true;
+    // Cheese caverns: blobby open rooms.
+    if (this.caveNoiseC.noise3(wx * 0.021, wy * 0.04, wz * 0.021) > CAVE_ROOM) return true;
+    return false;
   }
 
   climate(noise, wx, wz) {
@@ -125,45 +164,67 @@ export class World {
   generateChunk(cx, cz) {
     const chunk = new Chunk(cx, cz);
     const ox = cx * CHUNK_SIZE, oz = cz * CHUNK_SIZE;
+    const solid = this._col;
 
     for (let lz = 0; lz < CHUNK_SIZE; lz++) {
       for (let lx = 0; lx < CHUNK_SIZE; lx++) {
         const wx = ox + lx, wz = oz + lz;
-        const height = this.columnHeight(wx, wz);
+        const h = this.baseHeight(wx, wz);
+        const hi = Math.floor(h);
         const temp = this.climate(this.tempNoise, wx, wz);
         const humidity = this.climate(this.humidityNoise, wx, wz);
-        // Per-column jitter so the rock line and snow line wobble by a few
-        // blocks instead of forming dead-straight contour bands.
         const rockJitter = this.warpNoise.noise2(wx * 0.06, wz * 0.06) * 6;
         const snowJitter = this.detailNoise.noise2(wx * 0.07 + 20, wz * 0.07) * 6;
-        const biome = pickBiome(temp, humidity, height, WATER_LEVEL, height + rockJitter);
-        const underwater = height <= WATER_LEVEL;
+        const biome = pickBiome(temp, humidity, hi, WATER_LEVEL, hi + rockJitter);
 
-        for (let y = 0; y <= height; y++) {
+        // 1) Build the column solidity from the 3D density field, minus caves.
+        //    Always cover at least up to sea level so the water pass reads valid data.
+        const top = Math.min(WORLD_HEIGHT - 1, Math.max(hi + SURF_BAND, WATER_LEVEL));
+        for (let y = 0; y <= top; y++) {
+          let s = this.terrainSolid(wx, y, wz, h) ? 1 : 0;
+          if (s && this.caveAt(wx, y, wz, hi)) s = 0;
+          if (y === 0) s = 1; // guaranteed bedrock floor, no void holes
+          solid[y] = s;
+        }
+
+        // 2) Assign materials top-down. The top of every solid run (air above)
+        //    is a surface block; the next few are subsurface; the rest is stone.
+        let depth = 0;
+        let surfaceTopY = -1;
+        for (let y = top; y >= 0; y--) {
+          if (!solid[y]) { depth = 0; continue; }
           let id;
           if (y === 0) {
             id = BLOCK.BEDROCK;
-          } else if (y === height) {
-            id = underwater ? biome.underwater : biome.surface;
-            if (biome.snowCap) {
-              if (height + snowJitter > 72) id = BLOCK.SNOW;
-              else if (this.detailNoise.noise2(wx * 0.15, wz * 0.15) > 0.28) id = BLOCK.GRAVEL; // scree
+          } else if (depth === 0) {
+            // Surface block.
+            id = (y <= WATER_LEVEL) ? biome.underwater : biome.surface;
+            if (biome.snowCap && y > WATER_LEVEL) {
+              if (y + snowJitter > 72) id = BLOCK.SNOW;
+              else if (this.detailNoise.noise2(wx * 0.15, wz * 0.15) > 0.28) id = BLOCK.GRAVEL;
             }
-          } else if (y >= height - 3) {
+            if (surfaceTopY < 0 && y > WATER_LEVEL) surfaceTopY = y;
+          } else if (depth <= 3) {
             id = biome.subsurface;
           } else {
-            id = this.stoneOrOre(wx, y, wz, height);
+            id = this.stoneOrOre(wx, y, wz, hi);
           }
           chunk.set(lx, y, lz, id);
+          depth++;
         }
 
-        // Fill water up to sea level (frozen surface in cold biomes).
-        for (let y = height + 1; y <= WATER_LEVEL; y++) {
+        // 3) Water: fill open air from sea level down to the first solid block
+        //    (fills oceans/lakes but not capped caves below).
+        for (let y = WATER_LEVEL; y >= 0; y--) {
+          if (solid[y]) break;
           const ice = biome.freezesWater && y === WATER_LEVEL;
           chunk.set(lx, y, lz, ice ? BLOCK.ICE : BLOCK.WATER);
         }
 
-        if (!underwater) this.decorate(chunk, biome, lx, height, lz, wx, wz);
+        // 4) Decorate the highest land surface (if any).
+        if (surfaceTopY > WATER_LEVEL) {
+          this.decorate(chunk, biome, lx, surfaceTopY, lz, wx, wz);
+        }
       }
     }
     chunk.dirty = true;
@@ -172,8 +233,8 @@ export class World {
   }
 
   // Returns stone, occasionally replaced by ore based on depth.
-  stoneOrOre(wx, y, wz, height) {
-    if (y < height - 4) {
+  stoneOrOre(wx, y, wz, hi) {
+    if (y < hi - 4) {
       const r = hash3(wx, y, wz);
       if (y < 16 && r < 0.0035) return BLOCK.GOLD_ORE;
       if (y < 48 && r < 0.011) return BLOCK.IRON_ORE;
