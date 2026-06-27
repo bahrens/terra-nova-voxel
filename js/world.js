@@ -235,10 +235,15 @@ export class World {
           depth++;
         }
 
-        // 3) Water: fill open air from sea level down to the first solid block
-        //    (fills oceans/lakes but not capped caves below).
-        for (let y = WATER_LEVEL; y >= 0; y--) {
-          if (solid[y]) break;
+        // 3) Water: fill every air cell from sea level down through the
+        //    near-surface band (down to just below the base terrain height).
+        //    Unlike a per-column "stop at first solid", this also fills the
+        //    pockets tucked under underwater overhangs and shelves. Deep,
+        //    disconnected caverns below the base height stay dry — full
+        //    connectivity + dynamic flow come with the water simulation later.
+        const waterFloor = Math.max(0, hi - 3);
+        for (let y = WATER_LEVEL; y >= waterFloor; y--) {
+          if (solid[y]) continue;
           const ice = biome.freezesWater && y === WATER_LEVEL;
           chunk.set(lx, y, lz, ice ? BLOCK.ICE : BLOCK.WATER);
         }
