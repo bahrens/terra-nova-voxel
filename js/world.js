@@ -438,6 +438,12 @@ export class World {
     if (added > 0) {
       chunk.dirty = true;
       this.queueMesh(chunk);
+      // Neighbours' border faces now sit against new water and must be re-culled,
+      // or they leave a stale "wall" of faces inside the body.
+      this.markNeighbor(chunk.cx + 1, chunk.cz);
+      this.markNeighbor(chunk.cx - 1, chunk.cz);
+      this.markNeighbor(chunk.cx, chunk.cz + 1);
+      this.markNeighbor(chunk.cx, chunk.cz - 1);
       this.markWaterSeamNeighbors(chunk);
     }
   }
