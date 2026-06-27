@@ -67,6 +67,7 @@ export class World {
     this.genQueue = [];
     this.meshQueue = [];
     this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
+    this.waterSeamQueue = new Set(); // chunk keys needing a cross-border water re-flood
   }
 
   buildMaterials() {
@@ -351,11 +352,15 @@ export class World {
 
     chunk.dirty = true;
     this.chunks.set(key(cx, cz), chunk);
+    // Let already-loaded neighbours absorb water from this chunk's borders, and
+    // let this chunk absorb from neighbours generated earlier.
+    this.markWaterSeamNeighbors(chunk);
     return chunk;
   }
 
-  // Breadth-first flood from open-sky water-surface cells through connected air
-  // at or below sea level. Generated water is all "source" (stable, full).
+  // Breadth-first flood from open-sky water-surface cells (and from neighbouring
+  // chunks' border water) through connected air at or below sea level.
+  // Generated water is all "source" (stable, full).
   floodWater(chunk) {
     const stack = [];
     for (let lz = 0; lz < CHUNK_SIZE; lz++) {
@@ -368,24 +373,73 @@ export class World {
         }
       }
     }
-    while (stack.length) {
-      const z = stack.pop(), y = stack.pop(), x = stack.pop();
-      this.floodStep(chunk, stack, x + 1, y, z);
-      this.floodStep(chunk, stack, x - 1, y, z);
-      this.floodStep(chunk, stack, x, y, z + 1);
-      this.floodStep(chunk, stack, x, y, z - 1);
-      this.floodStep(chunk, stack, x, y - 1, z);
-      this.floodStep(chunk, stack, x, y + 1, z);
+    this.collectBorderSeeds(chunk, stack);
+    this.floodBFS(chunk, stack);
+  }
+
+  // Seed from air cells on a chunk edge whose neighbour (across the border, in
+  // an already-loaded chunk) is water.
+  collectBorderSeeds(chunk, stack) {
+    const ox = chunk.cx * CHUNK_SIZE, oz = chunk.cz * CHUNK_SIZE;
+    const C = CHUNK_SIZE - 1;
+    for (let y = 0; y <= WATER_LEVEL; y++) {
+      for (let i = 0; i < CHUNK_SIZE; i++) {
+        if (chunk.get(0, y, i) === AIR && this.getBlock(ox - 1, y, oz + i) === BLOCK.WATER)
+          this.floodStep(chunk, stack, 0, y, i);
+        if (chunk.get(C, y, i) === AIR && this.getBlock(ox + CHUNK_SIZE, y, oz + i) === BLOCK.WATER)
+          this.floodStep(chunk, stack, C, y, i);
+        if (chunk.get(i, y, 0) === AIR && this.getBlock(ox + i, y, oz - 1) === BLOCK.WATER)
+          this.floodStep(chunk, stack, i, y, 0);
+        if (chunk.get(i, y, C) === AIR && this.getBlock(ox + i, y, oz + CHUNK_SIZE) === BLOCK.WATER)
+          this.floodStep(chunk, stack, i, y, C);
+      }
     }
   }
 
+  floodBFS(chunk, stack) {
+    let added = stack.length / 3;
+    while (stack.length) {
+      const z = stack.pop(), y = stack.pop(), x = stack.pop();
+      added += this.floodStep(chunk, stack, x + 1, y, z);
+      added += this.floodStep(chunk, stack, x - 1, y, z);
+      added += this.floodStep(chunk, stack, x, y, z + 1);
+      added += this.floodStep(chunk, stack, x, y, z - 1);
+      added += this.floodStep(chunk, stack, x, y - 1, z);
+      added += this.floodStep(chunk, stack, x, y + 1, z);
+    }
+    return added;
+  }
+
   floodStep(chunk, stack, x, y, z) {
-    if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) return;
-    if (y < 0 || y > WATER_LEVEL) return;
-    if (chunk.get(x, y, z) !== AIR) return;
+    if (x < 0 || x >= CHUNK_SIZE || z < 0 || z >= CHUNK_SIZE) return 0;
+    if (y < 0 || y > WATER_LEVEL) return 0;
+    if (chunk.get(x, y, z) !== AIR) return 0;
     chunk.set(x, y, z, BLOCK.WATER);
     chunk.setW(x, y, z, WATER_SOURCE);
     stack.push(x, y, z);
+    return 1;
+  }
+
+  markWaterSeamNeighbors(chunk) {
+    const c = [[chunk.cx + 1, chunk.cz], [chunk.cx - 1, chunk.cz],
+               [chunk.cx, chunk.cz + 1], [chunk.cx, chunk.cz - 1]];
+    for (const [nx, nz] of c) {
+      if (this.chunks.has(key(nx, nz))) this.waterSeamQueue.add(key(nx, nz));
+    }
+  }
+
+  // Re-flood a chunk from its borders (water that arrived in a neighbour after
+  // this chunk was generated). Cascades to neighbours if it adds anything.
+  refloodFromBorders(chunk) {
+    const stack = [];
+    this.collectBorderSeeds(chunk, stack);
+    if (stack.length === 0) return;
+    const added = this.floodBFS(chunk, stack);
+    if (added > 0) {
+      chunk.dirty = true;
+      this.queueMesh(chunk);
+      this.markWaterSeamNeighbors(chunk);
+    }
   }
 
   capIce(chunk) {
@@ -519,6 +573,17 @@ export class World {
         if (!chunk || !chunk.dirty) continue;
         if (chunk.meshes && !chunk.dirty) continue;
         if (this.neighborsReady(cx, cz)) this.queueMesh(chunk);
+      }
+    }
+
+    // Cross-chunk water seam re-flood (a few per frame). Queues remeshes.
+    if (this.waterSeamQueue.size) {
+      const seam = [];
+      for (const k of this.waterSeamQueue) { seam.push(k); if (seam.length >= 3) break; }
+      for (const k of seam) {
+        this.waterSeamQueue.delete(k);
+        const c = this.chunks.get(k);
+        if (c) this.refloodFromBorders(c);
       }
     }
 
