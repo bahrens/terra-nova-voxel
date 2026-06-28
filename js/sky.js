@@ -57,25 +57,10 @@ function drawSun(ctx, s) {
   ctx.fillRect(0, 0, s, s);
 }
 
-// Moon: a solid pale disc (round, so the phase carves cleanly) with the unlit
-// part erased. phase 0..7: 0 full, 4 new, 1-3 waning, 5-7 waxing.
-function drawMoon(ctx, s, phase) {
-  const R = s / 2, cx = R - 0.5, cy = R - 0.5;
+// Moon: a plain solid square, like the sun.
+function drawMoon(ctx, s) {
   ctx.fillStyle = "rgb(228,233,247)";
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Carve the unlit portion (offset eraser circle of the same radius).
-  const illum = 1 - Math.abs(phase - 4) / 4; // 0 (new) .. 1 (full)
-  if (illum < 0.995) {
-    const off = 2 * R * illum, dir = phase > 4 ? -1 : 1;
-    ctx.globalCompositeOperation = "destination-out";
-    ctx.beginPath();
-    ctx.arc(cx + dir * off, cy, R, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalCompositeOperation = "source-over";
-  }
+  ctx.fillRect(0, 0, s, s);
 }
 
 export class Sky {
@@ -95,17 +80,11 @@ export class Sky {
       s.scale.set(scale, scale, 1);
       return s; // parented into a group by the caller
     };
-    // Sun & moon are plain pixel squares (no disc, no glow), like Minecraft.
+    // Sun & moon are plain solid squares, like Minecraft.
     this.sun = make(pixelTexture(drawSun), 22, THREE.NormalBlending);
     scene.add(this.sun);
-
-    this.moonTextures = Array.from({ length: 8 }, (_, p) =>
-      pixelTexture((ctx, s) => drawMoon(ctx, s, p)));
-    this.moon = make(this.moonTextures[0], 18, THREE.NormalBlending);
+    this.moon = make(pixelTexture(drawMoon), 18, THREE.NormalBlending);
     scene.add(this.moon);
-
-    this.day = 0;
-    this._moonPhase = 0;
 
     this.stars = this.makeStars();
     scene.add(this.stars);
@@ -140,16 +119,7 @@ export class Sky {
 
   update(dt, camera) {
     if (Number.isNaN(this.dayLength) || !Number.isFinite(this.dayLength)) return;
-    const prev = this.t;
     this.t = (this.t + dt / this.dayLength) % 1;
-    if (this.t < prev) this.day++; // crossed midnight -> next day
-
-    const phase = this.day % 8;
-    if (phase !== this._moonPhase) {
-      this._moonPhase = phase;
-      this.moon.material.map = this.moonTextures[phase];
-      this.moon.material.needsUpdate = true;
-    }
 
     const sunDir = this.sunDirection();
     const sunElev = sunDir.y;
