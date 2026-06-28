@@ -57,18 +57,11 @@ function drawSun(ctx, s) {
   ctx.fillRect(0, 0, s, s);
 }
 
-// Pixel-art moon: a pale square tile with a phase shadow carved out of it.
+// Moon: a solid pale square with the phase shadow carved out.
 // phase 0..7: 0 full, 4 new, 1-3 waning, 5-7 waxing.
 function drawMoon(ctx, s, phase) {
-  ctx.fillStyle = "rgb(222,228,244)";
+  ctx.fillStyle = "rgb(228,233,247)";
   ctx.fillRect(0, 0, s, s);
-  ctx.fillStyle = "rgb(240,243,255)";
-  const i = Math.round(s * 0.2);
-  ctx.fillRect(i, i, s - 2 * i, s - 2 * i);
-  ctx.fillStyle = "rgb(188,196,218)"; // a couple of crater pixels
-  const u = Math.round(s / 24) || 1;
-  ctx.fillRect(Math.round(s * 0.3), Math.round(s * 0.35), 2 * u, 2 * u);
-  ctx.fillRect(Math.round(s * 0.62), Math.round(s * 0.58), u, u);
 
   // Carve the unlit portion (offset eraser circle) -> transparent.
   const illum = 1 - Math.abs(phase - 4) / 4; // 0 (new) .. 1 (full)
