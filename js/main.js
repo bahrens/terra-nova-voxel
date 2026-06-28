@@ -29,9 +29,21 @@ const UNDERWATER_COLOR = new THREE.Color(0x2a5f9e);
 const camera = new THREE.PerspectiveCamera(
   72, window.innerWidth / window.innerHeight, 0.1, (RENDER_DISTANCE + 2) * CHUNK_SIZE);
 
-const world = new World(scene, { seed: 24601, renderDistance: RENDER_DISTANCE });
+// ---- Saved game (localStorage): seed + player edits + position + time ----
+const SAVE_KEY = "terra-nova-save";
+const DEFAULT_SEED = 24601;
+function loadSave() {
+  try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; }
+  catch { return null; }
+}
+const saved = loadSave();
+const seed = saved?.seed ?? DEFAULT_SEED;
+
+const world = new World(scene, { seed, renderDistance: RENDER_DISTANCE });
+if (saved?.edits) world.loadEditsData(saved.edits);
 const player = new Player(camera, world, scene);
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
+if (saved?.sky?.t != null) sky.t = saved.sky.t;
 
 // ---- Hotbar ----
 let selected = 0;
@@ -72,6 +84,10 @@ const hud = document.getElementById("hud");
 const debugEl = document.getElementById("debug");
 
 playBtn.addEventListener("click", () => canvas.requestPointerLock());
+const newWorldBtn = document.getElementById("newWorldBtn");
+if (newWorldBtn) newWorldBtn.addEventListener("click", () => {
+  if (confirm("Start a new world? This deletes your saved world.")) newWorld();
+});
 document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   player.enabled = locked;
@@ -89,7 +105,10 @@ window.addEventListener("resize", () => {
 
 // ---- Prime the spawn area, then start ----
 const loadingEl = document.getElementById("loading");
-const spawn = new THREE.Vector3(8, 70, 8);
+// Prime around the saved position if we have one, else the default spawn.
+const spawn = saved?.player
+  ? new THREE.Vector3(saved.player.x, saved.player.y, saved.player.z)
+  : new THREE.Vector3(8, 70, 8);
 
 function prime() {
   loadingEl.classList.add("active");
@@ -100,14 +119,71 @@ function prime() {
     const ready = world.isReady(spawn) && world.meshQueue.length === 0 && frames > 6;
     renderer.render(scene, camera);
     if (ready) {
-      player.spawnAt(8, 8);
+      if (saved?.player) {
+        const p = saved.player;
+        player.position.set(p.x, p.y, p.z);
+        player.yaw = p.yaw ?? 0;
+        player.pitch = p.pitch ?? 0;
+        player.flying = !!p.flying;
+        player.velocity.set(0, 0, 0);
+      } else {
+        player.spawnAt(8, 8);
+      }
       loadingEl.classList.remove("active");
+      started = true;
       start();
     } else {
       requestAnimationFrame(tick);
     }
   };
   requestAnimationFrame(tick);
+}
+
+// ---- Save game ----
+let started = false;
+function saveGame() {
+  if (!started) return false;
+  const data = {
+    version: 1,
+    seed,
+    player: {
+      x: player.position.x, y: player.position.y, z: player.position.z,
+      yaw: player.yaw, pitch: player.pitch, flying: player.flying,
+    },
+    sky: { t: sky.t },
+    edits: world.serializeEdits(),
+  };
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    toast("Saved");
+    return true;
+  } catch (e) {
+    toast("Save failed (storage full?)");
+    return false;
+  }
+}
+function newWorld() {
+  try { localStorage.removeItem(SAVE_KEY); } catch {}
+  location.reload();
+}
+
+// Auto-save periodically and when the tab is hidden/closed.
+setInterval(() => { if (started) saveGame(); }, 15000);
+window.addEventListener("pagehide", () => saveGame());
+window.addEventListener("beforeunload", () => saveGame());
+document.addEventListener("keydown", (e) => {
+  if (started && e.code === "KeyK") saveGame();
+});
+
+// Transient on-screen message.
+const toastEl = document.getElementById("toast");
+let toastTimer = 0;
+function toast(msg) {
+  if (!toastEl) return;
+  toastEl.textContent = msg;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1400);
 }
 
 // ---- Main loop ----

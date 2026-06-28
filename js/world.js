@@ -67,6 +67,43 @@ export class World {
     this.genQueue = [];
     this.meshQueue = [];
     this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
+    this.editsByChunk = new Map(); // chunkKey -> Map("wx,wy,wz" -> blockId): player edits
+  }
+
+  // ---- Player edits (the save-able diff from procedural generation) ----
+  recordEdit(x, y, z, id) {
+    const ck = key(floorDiv(x, CHUNK_SIZE), floorDiv(z, CHUNK_SIZE));
+    let m = this.editsByChunk.get(ck);
+    if (!m) { m = new Map(); this.editsByChunk.set(ck, m); }
+    m.set(x + "," + y + "," + z, id);
+  }
+
+  // Re-apply this chunk's stored edits over the freshly generated terrain.
+  applyEdits(chunk) {
+    const m = this.editsByChunk.get(key(chunk.cx, chunk.cz));
+    if (!m) return;
+    const ox = chunk.cx * CHUNK_SIZE, oz = chunk.cz * CHUNK_SIZE;
+    for (const [wk, id] of m) {
+      const c = wk.split(","), x = +c[0], y = +c[1], z = +c[2];
+      chunk.set(x - ox, y, z - oz, id);
+      chunk.setW(x - ox, y, z - oz, 0);
+      this.enqueueWaterAround(x, y, z); // let water re-settle around the edit
+    }
+  }
+
+  serializeEdits() {
+    const out = {};
+    for (const m of this.editsByChunk.values())
+      for (const [wk, id] of m) out[wk] = id;
+    return out;
+  }
+
+  loadEditsData(obj) {
+    this.editsByChunk.clear();
+    if (!obj) return;
+    for (const wk in obj) {
+      const c = wk.split(","); this.recordEdit(+c[0], +c[1], +c[2], obj[wk]);
+    }
   }
 
   buildMaterials() {
@@ -103,6 +140,7 @@ export class World {
     const lx = x - cx * CHUNK_SIZE, lz = z - cz * CHUNK_SIZE;
     chunk.set(lx, y, lz, id);
     chunk.setW(lx, y, lz, 0); // the cell's standing water is cleared by the edit
+    this.recordEdit(x, y, z, id); // remember player edits for save/load
     if (!remesh) return;
     chunk.dirty = true;
     this.queueMesh(chunk);
@@ -354,6 +392,7 @@ export class World {
     //    into already-loaded neighbours too. Enclosed caves stay dry.
     this.floodWater(chunk);
     this.capIce(chunk);
+    this.applyEdits(chunk); // overlay saved player edits
     return chunk;
   }
 

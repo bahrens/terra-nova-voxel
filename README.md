@@ -37,7 +37,16 @@ Then open **http://localhost:5173/** and click **Play**.
 | Fly up / down | `Space` / `Shift` |
 | Fast fly (while flying) | double-tap `W` |
 | Fast-forward time | hold `T` |
+| Save | `K` |
 | Pause / menu | `Esc` |
+
+## Saving
+
+Your world is saved to the browser's `localStorage` — it auto-saves every 15s
+and when you close the tab, and you can save manually with `K`. Because the
+terrain is procedural, only the **seed**, your **block edits**, position, and
+time of day are stored (not every voxel), so saves stay small. Use **New World**
+in the menu to wipe the save and start fresh.
 
 ## Features
 
