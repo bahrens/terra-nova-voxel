@@ -181,11 +181,11 @@ Not final — we'll make the call when we get there, but plan seams as if both a
 - [ ] **Block-destroy effects** — spawn particle/effect bursts when a block breaks
       (and likely a place effect + sound). Pairs naturally with the entity/particle
       work and audio. A reusable particle system is the real deliverable here.
-- [ ] **Hotbar must stay 9 slots** — the hotbar maps to digit keys `1`–`9`, so it
-      caps at 9. The torch currently overflows to a 10th slot (scroll-only) — not
-      acceptable long-term. Need a real strategy for >9 placeable blocks: a full
-      inventory with the hotbar as a 9-slot view (preferred — see Tier 1
-      Inventory), or hotbar paging/categories. Until then keep the hotbar at 9.
+- [ ] **>9 placeable blocks need a real home** — the hotbar maps to digit keys
+      `1`–`9`, so it caps at 9 (kept there; torch was swapped in for Sandstone).
+      Sandstone is now unplaceable until there's a full inventory with the hotbar
+      as a 9-slot view (preferred — see Tier 1 Inventory), or hotbar paging/
+      categories. That's the real fix; the 9-slot swap is just the stopgap.
 - [ ] **Proper torch shape + wall mounting** — the torch is a flat cross billboard
       placeholder. Want a real 3D torch post, and the ability to place it on the
       *side* of a block (angled outward), like Minecraft. Depends on the non-cube

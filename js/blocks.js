@@ -129,8 +129,9 @@ export function needsSupport(id) {
 }
 
 // The blocks offered in the hotbar, in order.
+// Kept at 9 so it maps cleanly to digit keys 1-9. (A proper >9-block solution —
+// a full inventory with the hotbar as a 9-slot view — is a roadmap item.)
 export const HOTBAR = [
   BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND,
-  BLOCK.SANDSTONE, BLOCK.LOG, BLOCK.PLANK, BLOCK.LEAVES, BLOCK.GLASS,
-  BLOCK.TORCH,
+  BLOCK.LOG, BLOCK.PLANK, BLOCK.LEAVES, BLOCK.GLASS, BLOCK.TORCH,
 ];
