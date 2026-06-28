@@ -99,8 +99,7 @@ function prime() {
   const tick = () => {
     world.update(spawn, { gen: 8, mesh: 6 });
     frames++;
-    const ready = world.isReady(spawn) && world.meshQueue.length === 0 &&
-                  world.waterSeamQueue.size === 0 && frames > 6;
+    const ready = world.isReady(spawn) && world.meshQueue.length === 0 && frames > 6;
     renderer.render(scene, camera);
     if (ready) {
       player.spawnAt(8, 8);
