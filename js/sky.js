@@ -51,9 +51,9 @@ function pixelTexture(paint) {
   return tex;
 }
 
-// Sun: a plain solid square, like Minecraft.
+// Sun: a plain solid square, like Minecraft (pale warm white, not too yellow).
 function drawSun(ctx, s) {
-  ctx.fillStyle = "rgb(255,243,180)";
+  ctx.fillStyle = "rgb(255,250,224)";
   ctx.fillRect(0, 0, s, s);
 }
 
