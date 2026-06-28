@@ -625,8 +625,16 @@ export class World {
   }
 
   neighborsReady(cx, cz) {
-    return this.chunks.has(key(cx + 1, cz)) && this.chunks.has(key(cx - 1, cz)) &&
-           this.chunks.has(key(cx, cz + 1)) && this.chunks.has(key(cx, cz - 1));
+    // All 8 surrounding chunks: the mesher's ambient-occlusion corner samples
+    // reach diagonally into neighbours, so meshing before the diagonal chunks
+    // exist bakes a darker AO seam along chunk borders.
+    for (let dz = -1; dz <= 1; dz++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        if (dx === 0 && dz === 0) continue;
+        if (!this.chunks.has(key(cx + dx, cz + dz))) return false;
+      }
+    }
+    return true;
   }
 
   // True once the chunk under the player (and its ring) is generated.
