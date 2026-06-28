@@ -35,22 +35,31 @@ function sampleKeys(keys, t) {
   return new THREE.Color(keys[keys.length - 1][1]);
 }
 
-// Radial-gradient disc texture for the sun / moon billboards.
-function discTexture(inner, outer) {
+// Radial-gradient disc texture from colour stops. Stops should fade to a
+// transparent *tint* (alpha 0 of the edge colour), never transparent black,
+// so alpha-blended discs don't get a dark halo.
+function discTexture(stops) {
   const s = 64;
   const c = document.createElement("canvas");
   c.width = c.height = s;
   const ctx = c.getContext("2d");
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  g.addColorStop(0, inner);
-  g.addColorStop(0.5, outer);
-  g.addColorStop(1, "rgba(0,0,0,0)");
+  for (const [o, col] of stops) g.addColorStop(o, col);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, s, s);
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+const SUN_STOPS = [
+  [0.0, "rgba(255,250,235,1)"], [0.30, "rgba(255,224,120,1)"],
+  [0.6, "rgba(255,190,70,0.45)"], [1.0, "rgba(255,170,50,0)"],
+];
+const MOON_STOPS = [
+  [0.0, "rgba(255,255,255,1)"], [0.55, "rgba(214,222,236,1)"],
+  [0.85, "rgba(200,210,230,0.5)"], [1.0, "rgba(200,210,230,0)"],
+];
 
 export class Sky {
   constructor(scene, materials, { dayLength = 300, startT = 0.32 } = {}) {
@@ -62,32 +71,32 @@ export class Sky {
     this.brightness = 1;
     this.radius = 160;            // distance of sun/moon/stars from the camera
 
-    const make = (tex, color, scale) => {
-      const m = new THREE.SpriteMaterial({ map: tex, color, fog: false,
-        transparent: true, depthWrite: false });
+    const make = (tex, scale, blending) => {
+      const m = new THREE.SpriteMaterial({ map: tex, fog: false,
+        transparent: true, depthWrite: false, blending });
       const s = new THREE.Sprite(m);
       s.scale.set(scale, scale, 1);
       scene.add(s);
       return s;
     };
-    this.sun = make(discTexture("#fff7e0", "#ffd24a"), 0xffffff, 26);
-    this.moon = make(discTexture("#ffffff", "#c8d2e6"), 0xffffff, 16);
+    // Sun glows (additive, no dark halo); moon is a solid disc (normal blend).
+    this.sun = make(discTexture(SUN_STOPS), 30, THREE.AdditiveBlending);
+    this.moon = make(discTexture(MOON_STOPS), 15, THREE.NormalBlending);
 
     this.stars = this.makeStars();
     scene.add(this.stars);
   }
 
   makeStars() {
-    const N = 900;
+    const N = 1100;
     const pos = new Float32Array(N * 3);
     for (let i = 0; i < N; i++) {
-      // random point on the upper hemisphere
+      // uniform random point on a full sphere (so they rise/set when rotated)
       const u = Math.random() * 2 - 1;
       const a = Math.random() * Math.PI * 2;
       const r = Math.sqrt(1 - u * u);
-      const y = Math.abs(u) * 0.9 + 0.05;
       pos[i * 3] = Math.cos(a) * r * this.radius;
-      pos[i * 3 + 1] = y * this.radius;
+      pos[i * 3 + 1] = u * this.radius;
       pos[i * 3 + 2] = Math.sin(a) * r * this.radius;
     }
     const geo = new THREE.BufferGeometry();
@@ -128,11 +137,12 @@ export class Sky {
     this.moon.position.copy(cam).addScaledVector(moonDir, this.radius);
     this.moon.visible = moonDir.y > -0.25;
 
-    // Stars fade in after dusk; the field follows the camera and turns slowly.
+    // Stars fade in after dusk; the field follows the camera and turns on the
+    // same axis as the sun/moon arc (about Z) so everything moves together.
     const night = 1 - smoothstep(-0.05, 0.18, sunElev);
     this.stars.material.opacity = night;
     this.stars.visible = night > 0.01;
     this.stars.position.copy(cam);
-    this.stars.rotation.y = this.t * Math.PI * 2;
+    this.stars.rotation.z = (this.t - 0.25) * Math.PI * 2;
   }
 }
