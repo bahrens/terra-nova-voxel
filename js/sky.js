@@ -51,66 +51,40 @@ function pixelTexture(paint) {
   return tex;
 }
 
-// Smooth radial-gradient glow (linear-filtered) drawn behind the pixel disc.
-function glowTexture(stops) {
-  const s = 64;
-  const c = document.createElement("canvas");
-  c.width = c.height = s;
-  const ctx = c.getContext("2d");
-  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
-  for (const [o, col] of stops) g.addColorStop(o, col);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, s, s);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-const SUN_GLOW = [
-  [0.0, "rgba(255,244,205,0.85)"], [0.4, "rgba(255,205,95,0.45)"], [1.0, "rgba(255,175,60,0)"],
-];
-const MOON_GLOW = [
-  [0.0, "rgba(220,230,255,0.55)"], [0.5, "rgba(190,205,235,0.22)"], [1.0, "rgba(190,205,235,0)"],
-];
-
-const px = (ctx, x, y, r, g, b, a) => {
-  ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
-  ctx.fillRect(x, y, 1, 1);
-};
-
-// Pixel-art sun: bright core, warm mid, faint outer (glows under additive blend).
+// Pixel-art sun: a plain warm square (like Minecraft), brighter in the middle.
 function drawSun(ctx, s) {
-  const R = s / 2, cx = R - 0.5, cy = R - 0.5;
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      const d = Math.hypot(x - cx, y - cy) / R;
-      if (d > 1) continue;
-      if (d < 0.5) px(ctx, x, y, 255, 248, 214, 1);
-      else if (d < 0.78) px(ctx, x, y, 255, 211, 84, 1);
-      else px(ctx, x, y, 255, 178, 54, 0.55);
-    }
-  }
+  ctx.fillStyle = "rgb(255,213,79)";
+  ctx.fillRect(0, 0, s, s);
+  ctx.fillStyle = "rgb(255,236,170)";
+  const i = Math.round(s * 0.2);
+  ctx.fillRect(i, i, s - 2 * i, s - 2 * i);
+  ctx.fillStyle = "rgb(255,248,214)";
+  const j = Math.round(s * 0.36);
+  ctx.fillRect(j, j, s - 2 * j, s - 2 * j);
 }
 
-// Pixel-art moon with a phase shadow (lit part kept, unlit carved transparent).
+// Pixel-art moon: a pale square tile with a phase shadow carved out of it.
 // phase 0..7: 0 full, 4 new, 1-3 waning, 5-7 waxing.
 function drawMoon(ctx, s, phase) {
-  const R = s / 2, cx = R - 0.5, cy = R - 0.5;
-  const illum = 1 - Math.abs(phase - 4) / 4;     // 0 (new) .. 1 (full)
-  const off = 2 * R * illum;
-  const ex = cx + (phase > 4 ? -1 : 1) * off;    // eraser centre
-  const craters = [[-3, -2], [2, 3], [4, -3]];
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      if (Math.hypot(x - cx, y - cy) > R) continue;       // outside disc
-      if (Math.hypot(x - ex, y - cy) <= R) continue;      // in shadow -> transparent
-      let r = 224, g = 230, b = 246;
-      if (Math.hypot(x - cx, y - cy) < R * 0.45) { r = 242; g = 245; b = 255; }
-      for (const [dx, dy] of craters) {
-        if (Math.abs(x - cx - dx) < 1 && Math.abs(y - cy - dy) < 1) { r = 184; g = 192; b = 214; }
-      }
-      px(ctx, x, y, r, g, b, 1);
-    }
+  ctx.fillStyle = "rgb(222,228,244)";
+  ctx.fillRect(0, 0, s, s);
+  ctx.fillStyle = "rgb(240,243,255)";
+  const i = Math.round(s * 0.2);
+  ctx.fillRect(i, i, s - 2 * i, s - 2 * i);
+  ctx.fillStyle = "rgb(188,196,218)"; // a couple of crater pixels
+  const u = Math.round(s / 24) || 1;
+  ctx.fillRect(Math.round(s * 0.3), Math.round(s * 0.35), 2 * u, 2 * u);
+  ctx.fillRect(Math.round(s * 0.62), Math.round(s * 0.58), u, u);
+
+  // Carve the unlit portion (offset eraser circle) -> transparent.
+  const illum = 1 - Math.abs(phase - 4) / 4; // 0 (new) .. 1 (full)
+  if (illum < 0.995) {
+    const R = s / 2, off = 2 * R * illum, dir = phase > 4 ? -1 : 1;
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(R - 0.5 + dir * off, R - 0.5, R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
   }
 }
 
@@ -131,18 +105,13 @@ export class Sky {
       s.scale.set(scale, scale, 1);
       return s; // parented into a group by the caller
     };
-    // Sun & moon = a soft glow (additive) behind a mildly-pixelated disc.
-    this.sun = new THREE.Group();
-    this.sun.add(make(glowTexture(SUN_GLOW), 64, THREE.AdditiveBlending));
-    this.sun.add(make(pixelTexture(drawSun), 22, THREE.AdditiveBlending));
+    // Sun & moon are plain pixel squares (no disc, no glow), like Minecraft.
+    this.sun = make(pixelTexture(drawSun), 22, THREE.NormalBlending);
     scene.add(this.sun);
 
     this.moonTextures = Array.from({ length: 8 }, (_, p) =>
       pixelTexture((ctx, s) => drawMoon(ctx, s, p)));
-    this.moon = new THREE.Group();
-    this.moon.add(make(glowTexture(MOON_GLOW), 34, THREE.AdditiveBlending));
-    this.moonCore = make(this.moonTextures[0], 18, THREE.NormalBlending);
-    this.moon.add(this.moonCore);
+    this.moon = make(this.moonTextures[0], 18, THREE.NormalBlending);
     scene.add(this.moon);
 
     this.day = 0;
@@ -188,8 +157,8 @@ export class Sky {
     const phase = this.day % 8;
     if (phase !== this._moonPhase) {
       this._moonPhase = phase;
-      this.moonCore.material.map = this.moonTextures[phase];
-      this.moonCore.material.needsUpdate = true;
+      this.moon.material.map = this.moonTextures[phase];
+      this.moon.material.needsUpdate = true;
     }
 
     const sunDir = this.sunDirection();
