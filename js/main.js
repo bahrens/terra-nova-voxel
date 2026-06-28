@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import { World } from "./world.js";
 import { Player } from "./player.js";
+import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
 import { HOTBAR, BLOCKS, BLOCK } from "./blocks.js";
 
@@ -24,13 +25,13 @@ scene.fog = new THREE.Fog(SKY, fogNear, fogFar);
 
 // Underwater look: tighter, bluer fog so the world gets murky when submerged.
 const UNDERWATER_COLOR = new THREE.Color(0x2a5f9e);
-const SKY_COLOR = new THREE.Color(SKY);
 
 const camera = new THREE.PerspectiveCamera(
   72, window.innerWidth / window.innerHeight, 0.1, (RENDER_DISTANCE + 2) * CHUNK_SIZE);
 
 const world = new World(scene, { seed: 24601, renderDistance: RENDER_DISTANCE });
 const player = new Player(camera, world, scene);
+const sky = new Sky(scene, world.materials, { dayLength: 300 });
 
 // ---- Hotbar ----
 let selected = 0;
@@ -122,11 +123,12 @@ function start() {
     // Step the fluid sim a few times a second so flow animates over ticks.
     waterAccum += dt;
     if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }
+    sky.update(dt, camera);
+    applySky();
     renderer.render(scene, camera);
 
     fpsAcc += dt; fpsFrames++;
     if (fpsAcc >= 0.5) { fps = Math.round(fpsFrames / fpsAcc); fpsAcc = 0; fpsFrames = 0; }
-    updateUnderwater();
     updateDebug();
 
     requestAnimationFrame(loop);
@@ -134,26 +136,27 @@ function start() {
   loop();
 }
 
-// Show a blue tint + murky fog whenever the camera (eye) is inside water.
+// Drive fog/background from the time of day, with an underwater override.
 const underwaterEl = document.getElementById("underwater");
+const _uw = new THREE.Color();
 let wasUnderwater = false;
-function updateUnderwater() {
+function applySky() {
   const c = camera.position;
-  const block = world.getBlock(Math.floor(c.x), Math.floor(c.y), Math.floor(c.z));
-  const submerged = block === BLOCK.WATER;
-  if (submerged === wasUnderwater) return;
-  wasUnderwater = submerged;
-  underwaterEl.classList.toggle("active", submerged);
+  const submerged = world.getBlock(Math.floor(c.x), Math.floor(c.y), Math.floor(c.z)) === BLOCK.WATER;
+  if (submerged !== wasUnderwater) {
+    wasUnderwater = submerged;
+    underwaterEl.classList.toggle("active", submerged);
+    scene.fog.near = submerged ? 0.1 : fogNear;
+    scene.fog.far = submerged ? 26 : fogFar;
+  }
   if (submerged) {
-    scene.fog.color.copy(UNDERWATER_COLOR);
-    scene.fog.near = 0.1;
-    scene.fog.far = 26;
-    scene.background.copy(UNDERWATER_COLOR);
+    // Underwater blue, dimmed at night to match the world brightness.
+    _uw.copy(UNDERWATER_COLOR).multiplyScalar(0.45 + 0.55 * sky.brightness);
+    scene.fog.color.copy(_uw);
+    scene.background.copy(_uw);
   } else {
-    scene.fog.color.copy(SKY_COLOR);
-    scene.fog.near = fogNear;
-    scene.fog.far = fogFar;
-    scene.background.copy(SKY_COLOR);
+    scene.fog.color.copy(sky.skyColor);
+    scene.background.copy(sky.skyColor);
   }
 }
 
@@ -162,12 +165,14 @@ function updateDebug() {
   const p = player.position;
   const hit = player.raycast();
   const looking = hit ? `${BLOCKS[hit.block]?.name ?? hit.block} @ ${hit.x},${hit.y},${hit.z}` : "—";
+  const mins = Math.floor(sky.t * 24 * 60);
+  const clock24 = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
   debugEl.textContent =
     `Terra Nova\n` +
     `xyz  ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}\n` +
     `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}\n` +
     `fps  ${fps}   ${player.flying ? (player.flyFast ? "FLY·fast" : "FLY") : (player.onGround ? "ground" : "air")}\n` +
-    `look ${looking}`;
+    `time ${clock24}   look ${looking}`;
 }
 
 prime();
