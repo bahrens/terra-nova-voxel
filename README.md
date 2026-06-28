@@ -36,6 +36,7 @@ Then open **http://localhost:5173/** and click **Play**.
 | Toggle fly | `F` |
 | Fly up / down | `Space` / `Shift` |
 | Fast fly (while flying) | double-tap `W` |
+| Fast-forward time | hold `T` |
 | Pause / menu | `Esc` |
 
 ## Features

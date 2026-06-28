@@ -56,10 +56,36 @@ const SUN_STOPS = [
   [0.0, "rgba(255,250,235,1)"], [0.30, "rgba(255,224,120,1)"],
   [0.6, "rgba(255,190,70,0.45)"], [1.0, "rgba(255,170,50,0)"],
 ];
-const MOON_STOPS = [
-  [0.0, "rgba(255,255,255,1)"], [0.55, "rgba(214,222,236,1)"],
-  [0.85, "rgba(200,210,230,0.5)"], [1.0, "rgba(200,210,230,0)"],
-];
+// Moon disc with a phase shadow. phase 0..7: 0 full, 4 new, 1-3 waning,
+// 5-7 waxing. The unlit part is carved out (transparent) like Minecraft's moon.
+function moonTexture(phase) {
+  const s = 64, R = 27, cx = 32, cy = 32;
+  const c = document.createElement("canvas");
+  c.width = c.height = s;
+  const ctx = c.getContext("2d");
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
+  g.addColorStop(0, "rgba(245,247,255,1)");
+  g.addColorStop(0.85, "rgba(206,214,232,1)");
+  g.addColorStop(1, "rgba(206,214,232,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(170,180,205,0.5)";
+  for (const [dx, dy, r] of [[-6, -4, 4], [5, 6, 3], [9, -7, 2]]) {
+    ctx.beginPath(); ctx.arc(cx + dx, cy + dy, r, 0, Math.PI * 2); ctx.fill();
+  }
+  // Carve the unlit portion with an offset eraser circle.
+  const illum = 1 - Math.abs(phase - 4) / 4; // 0 (new) .. 1 (full)
+  if (illum < 0.995) {
+    ctx.globalCompositeOperation = "destination-out";
+    const off = 2 * R * illum;
+    const dir = phase > 4 ? -1 : 1; // waxing lit on the right, waning on the left
+    ctx.beginPath(); ctx.arc(cx + dir * off, cy, R, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 export class Sky {
   constructor(scene, materials, { dayLength = 300, startT = 0.32 } = {}) {
@@ -79,9 +105,13 @@ export class Sky {
       scene.add(s);
       return s;
     };
-    // Sun glows (additive, no dark halo); moon is a solid disc (normal blend).
+    // Sun glows (additive, no dark halo); moon is a solid disc (normal blend)
+    // and cycles through 8 phases over successive nights.
     this.sun = make(discTexture(SUN_STOPS), 30, THREE.AdditiveBlending);
-    this.moon = make(discTexture(MOON_STOPS), 15, THREE.NormalBlending);
+    this.moonTextures = Array.from({ length: 8 }, (_, p) => moonTexture(p));
+    this.moon = make(this.moonTextures[0], 16, THREE.NormalBlending);
+    this.day = 0;
+    this._moonPhase = 0;
 
     this.stars = this.makeStars();
     scene.add(this.stars);
@@ -116,7 +146,16 @@ export class Sky {
 
   update(dt, camera) {
     if (Number.isNaN(this.dayLength) || !Number.isFinite(this.dayLength)) return;
+    const prev = this.t;
     this.t = (this.t + dt / this.dayLength) % 1;
+    if (this.t < prev) this.day++; // crossed midnight -> next day
+
+    const phase = this.day % 8;
+    if (phase !== this._moonPhase) {
+      this._moonPhase = phase;
+      this.moon.material.map = this.moonTextures[phase];
+      this.moon.material.needsUpdate = true;
+    }
 
     const sunDir = this.sunDirection();
     const sunElev = sunDir.y;

@@ -31,7 +31,7 @@ const camera = new THREE.PerspectiveCamera(
 
 const world = new World(scene, { seed: 24601, renderDistance: RENDER_DISTANCE });
 const player = new Player(camera, world, scene);
-const sky = new Sky(scene, world.materials, { dayLength: 300 });
+const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 
 // ---- Hotbar ----
 let selected = 0;
@@ -123,7 +123,8 @@ function start() {
     // Step the fluid sim a few times a second so flow animates over ticks.
     waterAccum += dt;
     if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }
-    sky.update(dt, camera);
+    // Hold T to fast-forward time (handy for seeing the cycle / moon phases).
+    sky.update(dt * (player.keys.has("KeyT") ? 80 : 1), camera);
     applySky();
     renderer.render(scene, camera);
 
