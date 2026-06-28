@@ -99,6 +99,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       mesher only knows full cubes + cross-quads today; this needs a block-shape/
       model abstraction settled before pluggability.
 - [ ] **Block physics** — gravity-affected blocks (falling sand/gravel).
+- [ ] **Plant placement & growth rules** — data-driven properties for what each
+      plant can grow/be placed on (valid ground block types) and which biomes it
+      appears in. Today decoration only rolls per-biome plant tables (`biomes.js`)
+      with no ground-type constraint, and the player can place a plant on anything.
+      Extend to a per-plant `growsOn` block-type list + biome filter, enforced in
+      both generation (`World.decorate`) and player placement. Sibling of the
+      `needsSupport` rule — both are "block placement constraint" data — and sets
+      up later plant growth/spread over time.
 - [ ] **Player water-physics** — today water isn't solid so the player **falls
       straight through it**: no swimming, buoyancy, or drowning. Add swim movement,
       buoyancy, slower speed, and a breath meter (ties into survival). This is a
@@ -141,13 +149,12 @@ Not final — we'll make the call when we get there, but plan seams as if both a
 
 ## Bugs & polish
 
-- [ ] **Floating plants** — cross-plants (tall grass, flowers, dead bush) and
-      cactus are **not destroyed when the block beneath them is removed** — they
-      float. No support check exists in `World.setBlock` (`world.js:135`) or
-      `Player.breakBlock` (`player.js:231`). Fix: when a block is removed/changed,
-      check the cell above and drop/remove any non-self-supporting block resting
-      on it (and cascade for stacked cactus). General "block support" rule that
-      block physics (Tier 3) can later subsume.
+- [x] **Floating plants** *(fixed)* — small cross-plants (tall grass, flowers,
+      dead bush) no longer float when the block beneath them is dug out. Added a
+      per-block `needsSupport` flag; `World.setBlock` clears unsupported blocks
+      above an edit, recursing upward. Larger flora (cactus, logs) opt out and
+      stay put by design. A future "block support" / block-physics pass can
+      generalise this.
 - [ ] **Block-destroy effects** — spawn particle/effect bursts when a block breaks
       (and likely a place effect + sound). Pairs naturally with the entity/particle
       work and audio. A reusable particle system is the real deliverable here.
