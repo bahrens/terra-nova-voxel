@@ -43,7 +43,9 @@ export const BLOCK = {
 //   transparent: don't cull neighbour faces against it (glass, leaves, water)
 //   opaque:      false for blocks that should not hide faces behind them
 //   render:      "cube" | "cross"
-const PLANT = { solid: false, transparent: true, opaque: false, render: "cross" };
+//   needsSupport: destroyed if the solid block beneath it is removed. Small
+//                 ground plants set this; larger flora (cactus, logs) do not.
+const PLANT = { solid: false, transparent: true, opaque: false, render: "cross", needsSupport: true };
 
 export const BLOCKS = {
   [BLOCK.STONE]:   { name: "Stone",       tiles: { all: "stone" } },
@@ -81,6 +83,7 @@ for (const id in BLOCKS) {
   if (b.transparent === undefined) b.transparent = false;
   if (b.opaque === undefined) b.opaque = true;
   if (b.render === undefined) b.render = "cube";
+  if (b.needsSupport === undefined) b.needsSupport = false;
   const t = b.tiles;
   b.faces = {
     top: t.top || t.side || t.all,
@@ -109,6 +112,14 @@ export function isLiquid(id) {
 export function isCross(id) {
   const b = BLOCKS[id];
   return b ? b.render === "cross" : false;
+}
+
+// True for blocks that fall (are destroyed) when the block beneath them goes
+// away — the small cross-plants. Used to clear floating plants after a dig.
+// Per-block, so larger flora (cactus, logs) can opt out and stay put.
+export function needsSupport(id) {
+  const b = BLOCKS[id];
+  return b ? !!b.needsSupport : false;
 }
 
 // The blocks offered in the hotbar, in order.

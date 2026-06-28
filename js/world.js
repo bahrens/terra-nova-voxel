@@ -3,7 +3,7 @@
 import * as THREE from "three";
 import { Chunk, CHUNK_SIZE, WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
 import { Noise } from "./noise.js";
-import { BLOCK, AIR, isSolid } from "./blocks.js";
+import { BLOCK, AIR, isSolid, needsSupport } from "./blocks.js";
 import { pickBiome } from "./biomes.js";
 import { TextureAtlas } from "./textures.js";
 
@@ -151,6 +151,18 @@ export class World {
     if (lz === CHUNK_SIZE - 1) this.markNeighbor(cx, cz + 1);
     // Wake the fluid so it flows into a broken block / re-settles around a placed one.
     this.enqueueWaterAround(x, y, z);
+    // Drop any small plant left unsupported by this edit (no floating flowers).
+    this.breakUnsupported(x, y, z);
+  }
+
+  // If the cell just changed can no longer support the block above it, remove
+  // that block. Recurses upward via setBlock so a stack of support-needing
+  // blocks collapses together; larger flora (cactus, logs) opt out and stay.
+  breakUnsupported(x, y, z) {
+    const above = this.getBlock(x, y + 1, z);
+    if (!needsSupport(above)) return;
+    if (isSolid(this.getBlock(x, y, z))) return; // still has solid ground beneath
+    this.setBlock(x, y + 1, z, AIR);
   }
 
   // ---- Water simulation ----
