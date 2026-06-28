@@ -32,9 +32,6 @@ const camera = new THREE.PerspectiveCamera(
 const world = new World(scene, { seed: 24601, renderDistance: RENDER_DISTANCE });
 const player = new Player(camera, world, scene);
 
-// Debug handle for diagnosing rendering issues from the browser console.
-window.__tn = { world, player, camera, renderer, scene, THREE };
-
 // ---- Hotbar ----
 let selected = 0;
 const hotbarEl = document.getElementById("hotbar");
