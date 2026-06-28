@@ -35,7 +35,7 @@ function sampleKeys(keys, t) {
   return new THREE.Color(keys[keys.length - 1][1]);
 }
 
-const DISC = 16; // low-res so sun/moon scale up chunky like the rest of the game
+const DISC = 24; // mildly pixelated core (chunky but not blocky)
 
 // Build a nearest-filtered (pixelated) texture from a per-pixel painter.
 function pixelTexture(paint) {
@@ -50,6 +50,28 @@ function pixelTexture(paint) {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+// Smooth radial-gradient glow (linear-filtered) drawn behind the pixel disc.
+function glowTexture(stops) {
+  const s = 64;
+  const c = document.createElement("canvas");
+  c.width = c.height = s;
+  const ctx = c.getContext("2d");
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+  for (const [o, col] of stops) g.addColorStop(o, col);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, s, s);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const SUN_GLOW = [
+  [0.0, "rgba(255,244,205,0.85)"], [0.4, "rgba(255,205,95,0.45)"], [1.0, "rgba(255,175,60,0)"],
+];
+const MOON_GLOW = [
+  [0.0, "rgba(220,230,255,0.55)"], [0.5, "rgba(190,205,235,0.22)"], [1.0, "rgba(190,205,235,0)"],
+];
 
 const px = (ctx, x, y, r, g, b, a) => {
   ctx.fillStyle = `rgba(${r},${g},${b},${a})`;
@@ -107,15 +129,22 @@ export class Sky {
         transparent: true, depthWrite: false, blending });
       const s = new THREE.Sprite(m);
       s.scale.set(scale, scale, 1);
-      scene.add(s);
-      return s;
+      return s; // parented into a group by the caller
     };
-    // Pixel-art sun glows (additive); moon is a solid pixel disc that cycles
-    // through 8 phases over successive nights.
-    this.sun = make(pixelTexture(drawSun), 30, THREE.AdditiveBlending);
+    // Sun & moon = a soft glow (additive) behind a mildly-pixelated disc.
+    this.sun = new THREE.Group();
+    this.sun.add(make(glowTexture(SUN_GLOW), 64, THREE.AdditiveBlending));
+    this.sun.add(make(pixelTexture(drawSun), 22, THREE.AdditiveBlending));
+    scene.add(this.sun);
+
     this.moonTextures = Array.from({ length: 8 }, (_, p) =>
       pixelTexture((ctx, s) => drawMoon(ctx, s, p)));
-    this.moon = make(this.moonTextures[0], 18, THREE.NormalBlending);
+    this.moon = new THREE.Group();
+    this.moon.add(make(glowTexture(MOON_GLOW), 34, THREE.AdditiveBlending));
+    this.moonCore = make(this.moonTextures[0], 18, THREE.NormalBlending);
+    this.moon.add(this.moonCore);
+    scene.add(this.moon);
+
     this.day = 0;
     this._moonPhase = 0;
 
@@ -159,8 +188,8 @@ export class Sky {
     const phase = this.day % 8;
     if (phase !== this._moonPhase) {
       this._moonPhase = phase;
-      this.moon.material.map = this.moonTextures[phase];
-      this.moon.material.needsUpdate = true;
+      this.moonCore.material.map = this.moonTextures[phase];
+      this.moonCore.material.needsUpdate = true;
     }
 
     const sunDir = this.sunDirection();
