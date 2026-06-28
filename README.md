@@ -2,6 +2,8 @@
 
 A browser-based, Minecraft-style voxel sandbox built with vanilla JavaScript and [Three.js](https://threejs.org/). Procedurally generated 3D terrain, biomes, caves, and flowing water — no build step and no image assets (textures are drawn at runtime).
 
+> **Where this is going:** Terra Nova is the base for building *other* voxel games on a shared, pluggable core. See [`docs/ROADMAP.md`](docs/ROADMAP.md) for the vision and plans, and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how the base game is built. **Keep planning decisions in those docs, not just in chat.**
+
 ## How to run
 
 The game uses native ES modules, so it must be served over HTTP (opening `index.html` directly via `file://` won't work). Three.js is **vendored** in `vendor/`, so there's nothing to `npm install`.

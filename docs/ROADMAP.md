@@ -1,0 +1,174 @@
+# Terra Nova — Vision & Roadmap
+
+> The planning doc that should never live only in a chat window again.
+> Keep this current as priorities change. If we decide something, it goes here.
+
+## Vision
+
+1. **Build a solid Minecraft-like voxel game** as the base — terrain, biomes,
+   caves, water, day/night, building, saving. This is the reference game and it
+   needs to be genuinely fun/complete on its own.
+2. **Turn the base into a foundation for *other* voxel games.** The long-term
+   goal is to build multiple distinct voxel games on top of the same core, not
+   just one Minecraft clone.
+3. **Make it pluggable** once the base game is in place. Refactor the core so
+   game-specific content (blocks, biomes, entities, rules, generation) is data /
+   plugins layered over a reusable engine, rather than hard-coded into it.
+
+### Sequencing principle
+
+Finish the base game *first*, then extract the engine. We deliberately do **not**
+build the plugin architecture up front — we let the base game tell us where the
+seams should be. Data-driven registries that already exist (`blocks.js`,
+`biomes.js`, the procedural texture atlas) are early seeds of that pluggability.
+
+## Current status
+
+Where things stand (see `git log` for specifics):
+
+- ✅ Procedural 3D density terrain, biomes, caves, ores
+- ✅ Flood-filled water + a flowing water simulation
+- ✅ Procedural runtime texture atlas (no image assets)
+- ✅ Day/night cycle with sun/moon/stars and brightness-based "lighting"
+- ✅ First-person controls, collision, block break/place, fly mode
+- 🔄 **Save / load** — localStorage edit-diff saves (seed + edits + position +
+  time). This is the feature we were actively working on. See
+  [Save state](#save-state-in-progress) for status and open threads.
+
+## In progress
+
+### Save state (in progress)
+
+Implemented: localStorage save storing `{ seed, player, sky.t, edits }`,
+auto-save every 15s + on tab hide/close, manual save (`K`), New World wipe.
+Edits are stored as a per-chunk diff over procedural terrain so saves stay small.
+
+Open threads / things to decide (FILL IN — partly reconstructed, confirm):
+- [ ] Multiple named save slots vs. the single `terra-nova-save` key?
+- [ ] Save-format versioning / migration story (there's a `version: 1` field but
+      no migration path yet).
+- [ ] Edit-diff compaction — re-placing then breaking a block leaves a redundant
+      AIR entry; long sessions bloat the save.
+- [ ] localStorage ~5MB quota — at what point do we move to IndexedDB?
+- [ ] Should water-sim state persist, or always re-settle from the flood-fill on
+      load? (Currently re-settles.)
+
+## Base-game feature plan
+
+The full set of work to get a credible Minecraft-like base game *before* the
+engine/content split. Ordered into tiers by how foundational each piece is — a
+feature earns a place in the base when building it forces a seam every downstream
+voxel game should share. (Brainstormed 2026-06-28; reconstructs + extends the
+lost short list. Items the original list explicitly named are marked ⭐.)
+
+### Tier 1 — Foundational systems (define the seams; hard to retrofit)
+
+- [ ] ⭐ **Lighting** — real block-light + skylight flood propagation baked into
+      the mesher's vertex colours, replacing today's global brightness scalar.
+      Deep `chunk.js` change; land it early. Torches are a *consumer* of this.
+- [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
+      items, and projectiles are all entities**. Build this general, not as
+      "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)
+- [ ] **Items as a first-class concept, distinct from blocks** — an item registry
+      separate from the block registry (tools, food, materials, "block items").
+      The single most important missing abstraction: inventory, crafting, drops,
+      and mining all depend on it. Today *everything is a block*.
+- [ ] **Inventory** — stacks/slots model, hotbar as a view into it, picking up
+      dropped items. Prerequisite for survival, crafting, and mining-with-drops.
+
+### Tier 2 — Core gameplay loop (sandbox → game)
+
+- [ ] **Mining mechanics** — block hardness, break time, breaking animation/
+      progress, and **blocks dropping items**. Today break is instant + yields
+      nothing. Pairs with **tools** (pickaxe/axe/shovel tiers).
+- [ ] **Crafting** — a **recipe registry** (crafting grid + smelting/furnace).
+      Textbook pluggability seam — a data-driven table each downstream game redefines.
+- [ ] **Survival vs creative mode** — the game-mode distinction and the rules that
+      hang off it: health, fall damage, drowning, hunger. Also a pluggability
+      concern ("game rules" are per-game config). **See open question below.**
+- [ ] ⭐ **Mobs** — spawning rules (day/night), simple AI, pathfinding, despawn,
+      save persistence. Builds on the entity system.
+- [ ] **Combat** — attacking entities, mob health, knockback. Follows entities +
+      survival.
+- [ ] ⭐ **Torches** — placeable light emitters; consume the lighting system.
+      Likely need the block-shape work below (wall-attached).
+
+### Tier 3 — World & physics depth
+
+- [ ] **Non-cube block shapes** — slabs, stairs, fences, attached torches. The
+      mesher only knows full cubes + cross-quads today; this needs a block-shape/
+      model abstraction settled before pluggability.
+- [ ] **Block physics** — gravity-affected blocks (falling sand/gravel).
+- [ ] **Player water-physics** — today water isn't solid so the player **falls
+      straight through it**: no swimming, buoyancy, or drowning. Add swim movement,
+      buoyancy, slower speed, and a breath meter (ties into survival). This is a
+      real gap independent of the flow-sim question below.
+- [ ] ⭐ **Water basin filling** *(the recalled "water improvements" item)* — flow
+      sim filling depressions/basins properly (e.g. player-placed or drained water
+      settling to fill an enclosed basin, not just sea-connected flood). **Ben's
+      recollection; not sure it's actually needed — revisit before scheduling.**
+
+### Tier 4 — Presentation & shell
+
+- [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
+      ambient, mob sounds, music. Its own system/seam.
+- [ ] **Multiple worlds + world-select UI** — today it's one hardcoded
+      `localStorage` slot. Need a world list, create/delete, naming.
+- [ ] **Settings menu** — render distance, mouse sensitivity, volume, FOV.
+- [ ] **UI surfaces** — inventory screen, death/respawn screen, pause polish.
+
+### Tier 5 — Tech foundation (enables scale; invisible to players)
+
+- [ ] **Web-worker chunk gen/meshing** — get generation off the main thread before
+      worlds get big. Matters more once entities + lighting raise per-frame cost.
+- [ ] **Greedy meshing** — fewer triangles per chunk.
+- [ ] **Chunk persistence beyond edits** — full chunk storage if procedural-only
+      saves prove limiting.
+
+### Open questions to decide before pluggability
+
+Current lean (2026-06-28): **likely both survival and multiplayer in the base.**
+Not final — we'll make the call when we get there, but plan seams as if both are in.
+
+- [ ] **Multiplayer or not?** Not a feature — an architecture decision that colors
+      everything (authoritative server, entity sync, deterministic gen). If *any*
+      downstream game might be multiplayer, the engine seams must assume it early.
+      *Leaning: in the base.* Decide explicitly when we reach it.
+- [ ] **Does survival live in the base game, or is it a pluggable game on top?**
+      I.e. is the base a creative sandbox with survival built on top, or does the
+      base ship survival mechanics? *Leaning: survival in the base.* Final call
+      deferred; affects Tier 2 priorities.
+
+## Bugs & polish
+
+- [ ] **Floating plants** — cross-plants (tall grass, flowers, dead bush) and
+      cactus are **not destroyed when the block beneath them is removed** — they
+      float. No support check exists in `World.setBlock` (`world.js:135`) or
+      `Player.breakBlock` (`player.js:231`). Fix: when a block is removed/changed,
+      check the cell above and drop/remove any non-self-supporting block resting
+      on it (and cascade for stacked cactus). General "block support" rule that
+      block physics (Tier 3) can later subsume.
+- [ ] **Block-destroy effects** — spawn particle/effect bursts when a block breaks
+      (and likely a place effect + sound). Pairs naturally with the entity/particle
+      work and audio. A reusable particle system is the real deliverable here.
+
+## Engine/content split (the pluggability milestone)
+
+The destination, not a near-term task. Extract a reusable core from game-specific
+data and define the plugin/mod API surface. Existing data-driven registries
+(`blocks.js`, `biomes.js`, `textures.js`) are the seeds. The base-game tiers above
+are what prove the remaining seams (items, entities, recipes, light, block shapes,
+game rules) before we freeze them into an API.
+
+## How we work / conventions
+
+- Vanilla JS, ES modules, **no build step**. Three.js is vendored in `vendor/`.
+- Keep modules small and single-purpose; comments explain the *why*.
+- Prefer data-driven registries over hard-coded logic — it pays off at the
+  pluggability stage.
+- **When we decide a plan, write it here.** Don't let the roadmap live only in a
+  conversation.
+
+---
+*Last meaningful update: 2026-06-28. Reconstructed after a lost planning session —
+sections marked NEEDS DETAIL need Ben's input to be authoritative.*
