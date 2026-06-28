@@ -108,17 +108,38 @@ export class World {
 
   buildMaterials() {
     const map = this.atlas.texture;
+    // Shared day/night uniform driven by Sky. Vertex colours carry
+    // r = AO×face shading, g = skylight, b = block light; the patched shader
+    // computes  tex × r × max(b, g × uSky)  so day/night is a uniform update
+    // (no re-meshing) and block light stays constant through the night. A small
+    // ambient floor keeps unlit areas from being pure black before torches exist.
+    const skyUniform = { value: 1 };
+    const patchLight = (mat) => {
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uSky = skyUniform;
+        shader.fragmentShader = "uniform float uSky;\n" + shader.fragmentShader.replace(
+          "#include <color_fragment>",
+          `#ifdef USE_COLOR
+             diffuseColor.rgb *= max(vColor.r * max(vColor.b, vColor.g * uSky), 0.06);
+           #endif`
+        );
+      };
+    };
+
     const opaque = new THREE.MeshBasicMaterial({ map, vertexColors: true });
+    patchLight(opaque);
     const foliage = new THREE.MeshBasicMaterial({
       map, vertexColors: true, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide,
     });
+    patchLight(foliage);
     // depthWrite:true so overlapping water faces from different chunk meshes
     // don't cumulatively blend (which produced darker seams at chunk borders).
+    // Water keeps the flat vertex brightness + material-colour day/night for now.
     const water = new THREE.MeshBasicMaterial({
       map, vertexColors: true, transparent: true, opacity: 0.78,
       depthWrite: true, side: THREE.DoubleSide,
     });
-    return { opaque, foliage, water };
+    return { opaque, foliage, water, skyUniform };
   }
 
   // ---- Block access (world coordinates) ----
@@ -132,6 +153,17 @@ export class World {
     return chunk.get(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
   }
 
+  // Skylight (0-15) of a world cell, or 15 if its chunk isn't loaded (assume lit
+  // so the load edge doesn't go dark). Used by the mesher for face lighting.
+  getSkyLight(x, y, z) {
+    if (y < 0) return 0;
+    if (y >= WORLD_HEIGHT) return 15;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return 15;
+    return chunk.getSky(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
   setBlock(x, y, z, id, remesh = true) {
     if (y < 0 || y >= WORLD_HEIGHT) return;
     const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
@@ -142,6 +174,7 @@ export class World {
     chunk.setW(lx, y, lz, 0); // the cell's standing water is cleared by the edit
     this.recordEdit(x, y, z, id); // remember player edits for save/load
     if (!remesh) return;
+    chunk.computeLight(); // relight before remeshing (e.g. digging a shaft to sky)
     chunk.dirty = true;
     this.queueMesh(chunk);
     // Remesh neighbours if the edit touches a chunk border.
@@ -405,6 +438,7 @@ export class World {
     this.floodWater(chunk);
     this.capIce(chunk);
     this.applyEdits(chunk); // overlay saved player edits
+    chunk.computeLight();   // seed skylight so neighbours can sample it when meshing
     return chunk;
   }
 

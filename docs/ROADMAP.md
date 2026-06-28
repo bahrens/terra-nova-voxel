@@ -63,9 +63,25 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 1 — Foundational systems (define the seams; hard to retrofit)
 
-- [ ] ⭐ **Lighting** — real block-light + skylight flood propagation baked into
-      the mesher's vertex colours, replacing today's global brightness scalar.
-      Deep `chunk.js` change; land it early. Torches are a *consumer* of this.
+- [ ] ⭐ **Lighting** — real block-light + skylight propagation, replacing today's
+      global brightness scalar. Deep `chunk.js` change; torches are a *consumer*.
+      **Design (decided 2026-06-28):**
+  - Two channels per voxel: *skylight* (from open sky, dimmed by day/night) and
+    *block light* (torches, constant). Surface brightness = `max(blockLight,
+    skyLight × dayFactor)`, Minecraft-style. Stored packed one byte/voxel
+    (hi nibble sky, lo nibble block) in a per-chunk `light` buffer.
+  - **Day/night must not require re-meshing.** So the mesher encodes the vertex
+    `color` attribute as `r = AO×face-shading` (static), `g = skyLight`,
+    `b = blockLight`, and a small `onBeforeCompile` patch on the materials makes
+    the fragment shader compute `tex × r × max(b, g × uSky)` with `uSky` a single
+    uniform driven by `sky.js`. Day/night becomes a per-frame uniform update, zero
+    re-meshing; torches stay constant through the night.
+  - **Increments:** (1) light buffer + skylight BFS + mesher/shader plumbing;
+    (2) block light + a TORCH block (emitter) in the hotbar; (3) cross-chunk
+    propagation + relight on neighbour load (kill border seams); (4) incremental
+    relight on edits instead of whole-chunk recompute.
+  - Increments 1–2 are chunk-local (border seams accepted, like early AO/water);
+    3 fixes seams, 4 is the perf pass. **Status: increment 1 in progress.**
 - [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
       "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)
