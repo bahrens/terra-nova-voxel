@@ -57,19 +57,22 @@ function drawSun(ctx, s) {
   ctx.fillRect(0, 0, s, s);
 }
 
-// Moon: a solid pale square with the phase shadow carved out.
-// phase 0..7: 0 full, 4 new, 1-3 waning, 5-7 waxing.
+// Moon: a solid pale disc (round, so the phase carves cleanly) with the unlit
+// part erased. phase 0..7: 0 full, 4 new, 1-3 waning, 5-7 waxing.
 function drawMoon(ctx, s, phase) {
+  const R = s / 2, cx = R - 0.5, cy = R - 0.5;
   ctx.fillStyle = "rgb(228,233,247)";
-  ctx.fillRect(0, 0, s, s);
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
 
-  // Carve the unlit portion (offset eraser circle) -> transparent.
+  // Carve the unlit portion (offset eraser circle of the same radius).
   const illum = 1 - Math.abs(phase - 4) / 4; // 0 (new) .. 1 (full)
   if (illum < 0.995) {
-    const R = s / 2, off = 2 * R * illum, dir = phase > 4 ? -1 : 1;
+    const off = 2 * R * illum, dir = phase > 4 ? -1 : 1;
     ctx.globalCompositeOperation = "destination-out";
     ctx.beginPath();
-    ctx.arc(R - 0.5 + dir * off, R - 0.5, R, 0, Math.PI * 2);
+    ctx.arc(cx + dir * off, cy, R, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalCompositeOperation = "source-over";
   }
