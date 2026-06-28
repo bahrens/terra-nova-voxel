@@ -95,7 +95,7 @@ function prime() {
   loadingEl.classList.add("active");
   let frames = 0;
   const tick = () => {
-    world.update(spawn, { gen: 8, mesh: 6 });
+    world.update(spawn, { genMs: 22, meshMs: 22 }); // load fast under the loading screen
     frames++;
     const ready = world.isReady(spawn) && world.meshQueue.length === 0 && frames > 6;
     renderer.render(scene, camera);

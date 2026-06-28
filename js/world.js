@@ -522,10 +522,17 @@ export class World {
   }
 
   // ---- Streaming around the player ----
-  update(playerPos, budget = { gen: 3, mesh: 4 }) {
+  // Time-sliced streaming: spend at most `genMs` building new chunks and
+  // `meshMs` meshing per call, so a frame is never blocked by a big batch.
+  // (A single chunk can still overrun if it's heavy, but we always make
+  // forward progress without piling many chunks into one frame.)
+  update(playerPos, budget = { genMs: 4, meshMs: 6 }) {
     const pcx = floorDiv(playerPos.x, CHUNK_SIZE);
     const pcz = floorDiv(playerPos.z, CHUNK_SIZE);
     const R = this.renderDistance;
+    const now = (typeof performance !== "undefined") ? () => performance.now() : () => Date.now();
+    const genMs = budget.genMs ?? 4;
+    const meshMs = budget.meshMs ?? 6;
 
     // Queue generation (radius + 1 so mesh neighbours always have data).
     const genR = R + 1;
@@ -538,8 +545,10 @@ export class World {
       }
     }
     wanted.sort((a, b) => a.dist - b.dist);
-    for (let i = 0; i < Math.min(budget.gen, wanted.length); i++) {
+    const tGen = now();
+    for (let i = 0; i < wanted.length; i++) {
       this.generateChunk(wanted[i].cx, wanted[i].cz);
+      if (now() - tGen >= genMs) break; // always builds at least one
     }
 
     // Queue meshing for chunks in render distance whose neighbours exist.
@@ -553,18 +562,18 @@ export class World {
       }
     }
 
-    // Process mesh queue nearest-first.
+    // Process mesh queue nearest-first, within the time budget.
     this.meshQueue.sort((a, b) => {
       const da = (a.cx - pcx) ** 2 + (a.cz - pcz) ** 2;
       const db = (b.cx - pcx) ** 2 + (b.cz - pcz) ** 2;
       return da - db;
     });
-    let meshed = 0;
-    while (this.meshQueue.length && meshed < budget.mesh) {
+    const tMesh = now();
+    while (this.meshQueue.length) {
       const chunk = this.meshQueue.shift();
       if (!this.chunks.has(key(chunk.cx, chunk.cz))) continue;
       this.buildChunkMesh(chunk);
-      meshed++;
+      if (now() - tMesh >= meshMs) break; // always meshes at least one
     }
 
     // Unload distant chunks.
