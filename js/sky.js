@@ -51,16 +51,10 @@ function pixelTexture(paint) {
   return tex;
 }
 
-// Pixel-art sun: a plain warm square (like Minecraft), brighter in the middle.
+// Sun: a plain solid square, like Minecraft.
 function drawSun(ctx, s) {
-  ctx.fillStyle = "rgb(255,213,79)";
+  ctx.fillStyle = "rgb(255,243,180)";
   ctx.fillRect(0, 0, s, s);
-  ctx.fillStyle = "rgb(255,236,170)";
-  const i = Math.round(s * 0.2);
-  ctx.fillRect(i, i, s - 2 * i, s - 2 * i);
-  ctx.fillStyle = "rgb(255,248,214)";
-  const j = Math.round(s * 0.36);
-  ctx.fillRect(j, j, s - 2 * j, s - 2 * j);
 }
 
 // Pixel-art moon: a pale square tile with a phase shadow carved out of it.
