@@ -74,44 +74,85 @@ export class Chunk {
     return (this.light[Chunk.idx(x, y, z)] >> 4) & 15;
   }
 
-  // Recompute skylight for the whole chunk (chunk-local: borders act as walls,
-  // so light doesn't yet cross chunk seams — that's a later increment). Skylight
-  // falls straight down from open sky at full level and spreads with -1 per step,
-  // blocked by opaque blocks; this is what darkens caves and overhangs.
+  getBlockL(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    return this.light[Chunk.idx(x, y, z)] & 15;
+  }
+
+  // Recompute skylight (high nibble) and block light (low nibble) for the whole
+  // chunk (chunk-local: borders act as walls, so light doesn't yet cross chunk
+  // seams — a later increment). Skylight falls straight down from open sky at
+  // full level; block light radiates from emitter blocks (torches). Both decay
+  // -1 per step and are blocked by opaque blocks.
   computeLight() {
     const L = this.light;
     L.fill(0);
     const S = CHUNK_SIZE;
-    const qx = [], qy = [], qz = [];
+    const inBounds = (x, y, z) =>
+      x >= 0 && x < S && z >= 0 && z < S && y >= 0 && y < WORLD_HEIGHT;
 
-    // Seed: from the top of each column down to the first opaque block is open
-    // sky at level 15.
-    for (let z = 0; z < S; z++) {
-      for (let x = 0; x < S; x++) {
-        for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
-          if (isOpaque(this.data[Chunk.idx(x, y, z)])) break;
-          L[Chunk.idx(x, y, z)] = 15 << 4;
-          qx.push(x); qy.push(y); qz.push(z);
+    // --- Skylight (high nibble) ---
+    {
+      const qx = [], qy = [], qz = [];
+      for (let z = 0; z < S; z++) {
+        for (let x = 0; x < S; x++) {
+          for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
+            if (isOpaque(this.data[Chunk.idx(x, y, z)])) break;
+            L[Chunk.idx(x, y, z)] = 15 << 4;
+            qx.push(x); qy.push(y); qz.push(z);
+          }
+        }
+      }
+      for (let head = 0; head < qx.length; head++) {
+        const x = qx[head], y = qy[head], z = qz[head];
+        const s = (L[Chunk.idx(x, y, z)] >> 4) & 15;
+        if (s <= 1) continue;
+        const N = [[x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
+                   [x, y + 1, z], [x, y - 1, z]];
+        for (const [nx, ny, nz] of N) {
+          if (!inBounds(nx, ny, nz)) continue;
+          const ni = Chunk.idx(nx, ny, nz);
+          if (isOpaque(this.data[ni])) continue;
+          // Straight-down keeps level 15 (sunlight column); else decay by 1.
+          const nl = (ny === y - 1 && s === 15) ? 15 : s - 1;
+          if (((L[ni] >> 4) & 15) < nl) {
+            L[ni] = (L[ni] & 0x0f) | (nl << 4);
+            qx.push(nx); qy.push(ny); qz.push(nz);
+          }
         }
       }
     }
 
-    // BFS spread. Straight-down propagation keeps level 15 (sunlight column);
-    // every other direction decays by 1.
-    for (let head = 0; head < qx.length; head++) {
-      const x = qx[head], y = qy[head], z = qz[head];
-      const s = (L[Chunk.idx(x, y, z)] >> 4) & 15;
-      if (s <= 1) continue;
-      const N = [[x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
-                 [x, y + 1, z], [x, y - 1, z]];
-      for (const [nx, ny, nz] of N) {
-        if (nx < 0 || nx >= S || nz < 0 || nz >= S || ny < 0 || ny >= WORLD_HEIGHT) continue;
-        const ni = Chunk.idx(nx, ny, nz);
-        if (isOpaque(this.data[ni])) continue;
-        const nl = (ny === y - 1 && s === 15) ? 15 : s - 1;
-        if (((L[ni] >> 4) & 15) < nl) {
-          L[ni] = (L[ni] & 0x0f) | (nl << 4);
-          qx.push(nx); qy.push(ny); qz.push(nz);
+    // --- Block light (low nibble) ---
+    {
+      const qx = [], qy = [], qz = [];
+      for (let y = 0; y < WORLD_HEIGHT; y++) {
+        for (let z = 0; z < S; z++) {
+          for (let x = 0; x < S; x++) {
+            const e = BLOCKS[this.data[Chunk.idx(x, y, z)]]?.light || 0;
+            if (e > 0) {
+              const i = Chunk.idx(x, y, z);
+              L[i] = (L[i] & 0xf0) | e;
+              qx.push(x); qy.push(y); qz.push(z);
+            }
+          }
+        }
+      }
+      for (let head = 0; head < qx.length; head++) {
+        const x = qx[head], y = qy[head], z = qz[head];
+        const b = L[Chunk.idx(x, y, z)] & 15;
+        if (b <= 1) continue;
+        const N = [[x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
+                   [x, y + 1, z], [x, y - 1, z]];
+        for (const [nx, ny, nz] of N) {
+          if (!inBounds(nx, ny, nz)) continue;
+          const ni = Chunk.idx(nx, ny, nz);
+          if (isOpaque(this.data[ni])) continue;
+          const nl = b - 1;
+          if ((L[ni] & 15) < nl) {
+            L[ni] = (L[ni] & 0xf0) | nl;
+            qx.push(nx); qy.push(ny); qz.push(nz);
+          }
         }
       }
     }
@@ -194,9 +235,10 @@ export class Chunk {
     const tile = def.faces[face.tile];
     const [u0, v0, u1, v1] = world.atlas.uv(tile);
     const light = face.light;
-    // Skylight of the (transparent) cell this face opens into. Encoded into the
-    // green vertex channel; the material shader combines it with day/night.
+    // Sky + block light of the (transparent) cell this face opens into, encoded
+    // into the green/blue vertex channels; the shader combines them per fragment.
     const skyN = world.getSkyLight(wx + dx, wy + dy, wz + dz) / 15;
+    const blockN = world.getBlockLight(wx + dx, wy + dy, wz + dz) / 15;
 
     // Face plane centre = block centre + 0.5 along normal.
     const cx = wx + 0.5 + dx * 0.5;
@@ -233,8 +275,8 @@ export class Chunk {
       buf.positions.push(positions[i][0], positions[i][1], positions[i][2]);
       buf.normals.push(dx, dy, dz);
       buf.uvs.push(uvCoords[i][0], uvCoords[i][1]);
-      // r = AO × face shading (static), g = skylight, b = block light (0 for now).
-      buf.colors.push(light * AO_LEVELS[ao[i]], skyN, 0);
+      // r = AO × face shading (static), g = skylight, b = block light.
+      buf.colors.push(light * AO_LEVELS[ao[i]], skyN, blockN);
     }
 
     // Flip quad triangulation to keep AO gradients smooth.
@@ -253,6 +295,7 @@ export class Chunk {
     const [u0, v0, u1, v1] = world.atlas.uv(tile);
     const b = 0.95; // plants render near full-bright
     const sky = world.getSkyLight(wx, wy, wz) / 15; // plant sits in its own cell
+    const block = world.getBlockLight(wx, wy, wz) / 15; // torches light their own cell
     const a = 0.146, c = 0.854; // inset so the X fits inside the cell
 
     const quads = [
@@ -267,7 +310,7 @@ export class Chunk {
         buf.positions.push(wx + q[i][0], wy + q[i][1], wz + q[i][2]);
         buf.normals.push(0, 1, 0);
         buf.uvs.push(uvs[i][0], uvs[i][1]);
-        buf.colors.push(b, sky, 0);
+        buf.colors.push(b, sky, block);
       }
       buf.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }

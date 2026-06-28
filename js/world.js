@@ -164,6 +164,15 @@ export class World {
     return chunk.getSky(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
   }
 
+  // Block light (0-15) of a world cell, or 0 if its chunk isn't loaded.
+  getBlockLight(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return 0;
+    return chunk.getBlockL(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
   setBlock(x, y, z, id, remesh = true) {
     if (y < 0 || y >= WORLD_HEIGHT) return;
     const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);

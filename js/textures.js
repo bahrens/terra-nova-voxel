@@ -170,6 +170,14 @@ const TILE_PAINTERS = {
   },
   flower_red: flowerTile("#d6453b"),
   flower_yellow: flowerTile("#e8c33a"),
+  torch: (ctx, x0, y0, rng) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    ctx.fillStyle = "#6e4a26";                              // wooden stick
+    for (let y = 6; y < TILE; y++) ctx.fillRect(x0 + 7, y0 + y, 2, 1);
+    ctx.fillStyle = "#ff8a2a"; ctx.fillRect(x0 + 6, y0 + 3, 4, 4); // flame
+    ctx.fillStyle = "#ffd24a"; ctx.fillRect(x0 + 7, y0 + 3, 2, 3);
+    ctx.fillStyle = "#fff3b0"; ctx.fillRect(x0 + 7, y0 + 3, 1, 1); // hot tip
+  },
   dead_bush: (ctx, x0, y0, rng) => {
     ctx.clearRect(x0, y0, TILE, TILE);
     const cx = x0 + 8;
