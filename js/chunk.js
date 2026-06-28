@@ -12,6 +12,10 @@ function surfaceHeight(level) {
   return Math.max(0.12, (level / 8) * 0.85); // flowing 1-8
 }
 
+// Water is shaded almost uniformly so vertical faces (pond/cliff edges, depth
+// steps, residual pockets) read as water rather than dark walls.
+const WATER_LIGHT = { top: 1.0, side: 0.94, bottom: 0.88 };
+
 export const CHUNK_SIZE = 16;
 export const WORLD_HEIGHT = 112;
 export const WATER_LEVEL = 26;
@@ -242,14 +246,14 @@ export class Chunk {
     if (openTop) {
       const y = wy + sh;
       this.pushQuad(buf, [[wx, y, wz], [wx + 1, y, wz], [wx + 1, y, wz + 1], [wx, y, wz + 1]],
-        UV, FACE_LIGHT.top);
+        UV, WATER_LIGHT.top);
     }
 
     // Bottom (rare — only over open air).
     const belowId = world.getBlock(wx, wy - 1, wz);
     if (!isOpaque(belowId) && belowId !== W) {
       this.pushQuad(buf, [[wx, wy, wz + 1], [wx + 1, wy, wz + 1], [wx + 1, wy, wz], [wx, wy, wz]],
-        UV, FACE_LIGHT.bottom);
+        UV, WATER_LIGHT.bottom);
     }
 
     // Sides.
@@ -271,7 +275,7 @@ export class Chunk {
       else { x0 = wx; z0 = wz; x1 = wx + 1; z1 = wz; }
       const yb = wy + by, yt = wy + sh;
       this.pushQuad(buf, [[x0, yb, z0], [x1, yb, z1], [x1, yt, z1], [x0, yt, z0]],
-        UV, FACE_LIGHT.z);
+        UV, WATER_LIGHT.side);
     }
   }
 
