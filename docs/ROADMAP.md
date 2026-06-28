@@ -122,6 +122,10 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       ambient, mob sounds, music. Its own system/seam.
 - [ ] **Multiple worlds + world-select UI** — today it's one hardcoded
       `localStorage` slot. Need a world list, create/delete, naming.
+- [ ] **Seed input on world creation** — let the player type a seed for a
+      reproducible world (and show the current world's seed). Today "New World"
+      picks a random seed with no way to choose or view it. Pairs with the
+      world-select UI above.
 - [ ] **Settings menu** — render distance, mouse sensitivity, volume, FOV.
 - [ ] **UI surfaces** — inventory screen, death/respawn screen, pause polish.
 

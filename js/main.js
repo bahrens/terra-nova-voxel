@@ -141,8 +141,9 @@ function prime() {
 
 // ---- Save game ----
 let started = false;
+let wiping = false; // true while discarding the world for "New World"
 function saveGame() {
-  if (!started) return false;
+  if (!started || wiping) return false;
   const data = {
     version: 1,
     seed,
@@ -163,7 +164,15 @@ function saveGame() {
   }
 }
 function newWorld() {
-  try { localStorage.removeItem(SAVE_KEY); } catch {}
+  // Block the pagehide/beforeunload auto-save below from rewriting the world
+  // we're discarding, then seed a fresh random world for the reload to load.
+  wiping = true;
+  try {
+    const freshSeed = (Math.random() * 0x7fffffff) >>> 0;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 1, seed: freshSeed }));
+  } catch {
+    try { localStorage.removeItem(SAVE_KEY); } catch {}
+  }
   location.reload();
 }
 
