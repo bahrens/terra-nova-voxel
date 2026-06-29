@@ -88,6 +88,12 @@ lost short list. Items the original list explicitly named are marked ⭐.)
     (time-budgeted; an optional further optimisation). Remaining gap: torch
     placement isn't support-validated (you can place a floating torch; it's only
     removed when its support is dug out — see the proper/wall-torch polish item).
+  - **Increment 5 — smooth lighting (done):** the mesher now averages sky/block
+    light *per vertex* over the 2×2 corner neighbourhood (reusing the AO samples)
+    instead of one flat value per face, so the GPU interpolates a gradient — fixes
+    the "blocky" per-face look (we were effectively "Minecraft Smooth Lighting:
+    OFF"). Optional follow-up: a multiplicative light *curve* in the shader
+    (each level ≈0.8× the next) for more natural falloff; currently linear.
 - [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
       "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)

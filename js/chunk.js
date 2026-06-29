@@ -279,10 +279,10 @@ export class Chunk {
     const tile = def.faces[face.tile];
     const [u0, v0, u1, v1] = world.atlas.uv(tile);
     const light = face.light;
-    // Sky + block light of the (transparent) cell this face opens into, encoded
-    // into the green/blue vertex channels; the shader combines them per fragment.
-    const skyN = world.getSkyLight(wx + dx, wy + dy, wz + dz) / 15;
-    const blockN = world.getBlockLight(wx + dx, wy + dy, wz + dz) / 15;
+    // Light of the cell this face opens into (always non-opaque). Smooth lighting
+    // averages it with the per-corner neighbours below, so it's gathered there.
+    const fSky = world.getSkyLight(wx + dx, wy + dy, wz + dz);
+    const fBlock = world.getBlockLight(wx + dx, wy + dy, wz + dz);
 
     // Face plane centre = block centre + 0.5 along normal.
     const cx = wx + 0.5 + dx * 0.5;
@@ -295,6 +295,7 @@ export class Chunk {
 
     const positions = [];
     const ao = [];
+    const skyV = [], blockV = [];
     for (let i = 0; i < 4; i++) {
       const [su, sv] = signs[i];
       positions.push([
@@ -302,16 +303,28 @@ export class Chunk {
         cy + 0.5 * su * u[1] + 0.5 * sv * v[1],
         cz + 0.5 * su * u[2] + 0.5 * sv * v[2],
       ]);
-      // AO: sample the two edge neighbours + corner in the layer in front of face.
-      const s1 = isOpaque(world.getBlock(
-        wx + dx + su * u[0], wy + dy + su * u[1], wz + dz + su * u[2]));
-      const s2 = isOpaque(world.getBlock(
-        wx + dx + sv * v[0], wy + dy + sv * v[1], wz + dz + sv * v[2]));
-      const corner = isOpaque(world.getBlock(
-        wx + dx + su * u[0] + sv * v[0],
-        wy + dy + su * u[1] + sv * v[1],
-        wz + dz + su * u[2] + sv * v[2]));
-      ao.push(aoValue(s1 ? 1 : 0, s2 ? 1 : 0, corner ? 1 : 0));
+      // The three neighbours sharing this corner in the layer in front of the
+      // face (edge1, edge2, diagonal) — reused for both AO and smooth lighting.
+      const e1x = wx + dx + su * u[0], e1y = wy + dy + su * u[1], e1z = wz + dz + su * u[2];
+      const e2x = wx + dx + sv * v[0], e2y = wy + dy + sv * v[1], e2z = wz + dz + sv * v[2];
+      const ccx = wx + dx + su * u[0] + sv * v[0],
+            ccy = wy + dy + su * u[1] + sv * v[1],
+            ccz = wz + dz + su * u[2] + sv * v[2];
+      const s1 = isOpaque(world.getBlock(e1x, e1y, e1z));
+      const s2 = isOpaque(world.getBlock(e2x, e2y, e2z));
+      const cnr = isOpaque(world.getBlock(ccx, ccy, ccz));
+      ao.push(aoValue(s1 ? 1 : 0, s2 ? 1 : 0, cnr ? 1 : 0));
+
+      // Smooth lighting: average light over the non-occluded cells of the 2×2
+      // corner (the face cell always counts; a diagonal hidden behind two solid
+      // edges is excluded, like AO). Interpolating these across the quad removes
+      // the flat per-face "blocky" look.
+      let sSum = fSky, bSum = fBlock, n = 1;
+      if (!s1) { sSum += world.getSkyLight(e1x, e1y, e1z); bSum += world.getBlockLight(e1x, e1y, e1z); n++; }
+      if (!s2) { sSum += world.getSkyLight(e2x, e2y, e2z); bSum += world.getBlockLight(e2x, e2y, e2z); n++; }
+      if (!cnr && !(s1 && s2)) { sSum += world.getSkyLight(ccx, ccy, ccz); bSum += world.getBlockLight(ccx, ccy, ccz); n++; }
+      skyV.push(sSum / n / 15);
+      blockV.push(bSum / n / 15);
     }
 
     const baseIndex = buf.positions.length / 3;
@@ -319,8 +332,8 @@ export class Chunk {
       buf.positions.push(positions[i][0], positions[i][1], positions[i][2]);
       buf.normals.push(dx, dy, dz);
       buf.uvs.push(uvCoords[i][0], uvCoords[i][1]);
-      // r = AO × face shading (static), g = skylight, b = block light.
-      buf.colors.push(light * AO_LEVELS[ao[i]], skyN, blockN);
+      // r = AO × face shading (static), g = skylight, b = block light (smoothed).
+      buf.colors.push(light * AO_LEVELS[ao[i]], skyV[i], blockV[i]);
     }
 
     // Flip quad triangulation to keep AO gradients smooth.
