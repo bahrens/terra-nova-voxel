@@ -34,6 +34,8 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref_name }}
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true # auto-enable Pages (build type = GitHub Actions)
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
