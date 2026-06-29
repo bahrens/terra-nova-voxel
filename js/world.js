@@ -68,6 +68,7 @@ export class World {
     this.genQueue = [];
     this.meshQueue = [];
     this.lightQueue = new Set();   // chunk keys awaiting cross-chunk relight
+    this.timings = { gen: 0, light: 0, mesh: 0 }; // per-update ms, read by the profiler
     this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
     this.editsByChunk = new Map(); // chunkKey -> Map("wx,wy,wz" -> blockId): player edits
   }
@@ -731,6 +732,7 @@ export class World {
       this.generateChunk(wanted[i].cx, wanted[i].cz);
       if (now() - tGen >= genMs) break; // always builds at least one
     }
+    this.timings.gen = now() - tGen;
 
     // Settle cross-chunk light propagation within a budget. relightChunk
     // re-enqueues neighbours only when something changed, so this drains once a
@@ -743,6 +745,7 @@ export class World {
       if (chunk) this.relightChunk(chunk);
       if (now() - tLight >= lightMs) break;
     }
+    this.timings.light = now() - tLight;
 
     // Queue meshing for chunks in render distance whose neighbours exist.
     for (let dz = -R; dz <= R; dz++) {
@@ -768,6 +771,7 @@ export class World {
       this.buildChunkMesh(chunk);
       if (now() - tMesh >= meshMs) break; // always meshes at least one
     }
+    this.timings.mesh = now() - tMesh;
 
     // Unload distant chunks.
     const unloadR = R + 2;

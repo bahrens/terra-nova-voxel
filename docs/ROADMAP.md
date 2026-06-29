@@ -205,11 +205,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 5 — Tech foundation (enables scale; invisible to players)
 
-- [ ] **Performance — needs another pass** — time-slicing gen/mesh helped, but
-      frames still **drop into the 30s** (observed 2026-06-29). Likely culprits to
-      profile: per-edit relight/remesh cost, full-chunk light recompute on stream,
-      mesh build time (no greedy meshing), and main-thread gen. Profile first
-      (where is the time going?), then attack the biggest items below.
+- [~] **Performance — needs another pass** — time-slicing gen/mesh helped, but
+      frames still **drop into the 30s** (observed 2026-06-29). *Tooling done:* a
+      first-class, toggleable **profiler overlay** (`P`, `js/profiler.js`) shows
+      smoothed per-section frame timings (player / world → gen·light·mesh / entity
+      / sky / render), draw calls, triangles, and queue depths — kept in the game
+      as a permanent dev tool. *Next:* read the overlay on a 30-fps frame to find
+      the dominant bucket, then attack it (likely candidates: full-chunk light
+      recompute on stream, mesh build w/o greedy meshing, main-thread gen).
 - [ ] **Web-worker chunk gen/meshing** — get generation off the main thread before
       worlds get big. Matters more once entities + lighting raise per-frame cost.
       Strongest lever for the 30-fps drops above.
