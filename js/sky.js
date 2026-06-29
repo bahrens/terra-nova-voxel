@@ -128,8 +128,10 @@ export class Sky {
     // World brightness: dim at night, full in day, smooth at dawn/dusk.
     this.brightness = 0.26 + 0.74 * smoothstep(-0.05, 0.30, sunElev);
     const b = this.brightness;
-    this.materials.opaque.color.setScalar(b);
-    this.materials.foliage.color.setScalar(b);
+    // Opaque/foliage day/night now rides the skylight shader uniform (so it dims
+    // sky-lit surfaces only, leaving block light constant). Water still uses the
+    // old flat material-colour scaling.
+    this.materials.skyUniform.value = b;
     this.materials.water.color.setScalar(0.4 + 0.6 * b); // water keeps a little colour at night
 
     // Position sun / moon on the sky dome around the camera.

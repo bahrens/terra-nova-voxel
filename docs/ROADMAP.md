@@ -63,9 +63,45 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 1 — Foundational systems (define the seams; hard to retrofit)
 
-- [ ] ⭐ **Lighting** — real block-light + skylight flood propagation baked into
-      the mesher's vertex colours, replacing today's global brightness scalar.
-      Deep `chunk.js` change; land it early. Torches are a *consumer* of this.
+- [ ] ⭐ **Lighting** — real block-light + skylight propagation, replacing today's
+      global brightness scalar. Deep `chunk.js` change; torches are a *consumer*.
+      **Design (decided 2026-06-28):**
+  - Two channels per voxel: *skylight* (from open sky, dimmed by day/night) and
+    *block light* (torches, constant). Surface brightness = `max(blockLight,
+    skyLight × dayFactor)`, Minecraft-style. Stored packed one byte/voxel
+    (hi nibble sky, lo nibble block) in a per-chunk `light` buffer.
+  - **Day/night must not require re-meshing.** So the mesher encodes the vertex
+    `color` attribute as `r = AO×face-shading` (static), `g = skyLight`,
+    `b = blockLight`, and a small `onBeforeCompile` patch on the materials makes
+    the fragment shader compute `tex × r × max(b, g × uSky)` with `uSky` a single
+    uniform driven by `sky.js`. Day/night becomes a per-frame uniform update, zero
+    re-meshing; torches stay constant through the night.
+  - **Increments:** (1) light buffer + skylight BFS + mesher/shader plumbing;
+    (2) block light + a TORCH block (emitter) in the hotbar; (3) cross-chunk
+    propagation + relight on neighbour load (kill border seams); (4) incremental
+    relight on edits instead of whole-chunk recompute.
+  - **Status: increments 1–4 done** (skylight, block light/torches, cross-chunk
+    propagation, incremental edit relighting). Block edits now relight only the
+    affected cells via a two-phase remove/add BFS in `light.js` (fuzz-tested vs
+    full recompute over ~1.6k random edits) and remesh just the touched chunks.
+    Streaming/chunk-load still uses full `computeLight` + the relight queue
+    (time-budgeted; an optional further optimisation). Remaining gap: torch
+    placement isn't support-validated (you can place a floating torch; it's only
+    removed when its support is dug out — see the proper/wall-torch polish item).
+  - **Increment 5 — smooth lighting (done):** the mesher now averages sky/block
+    light *per vertex* over the 2×2 corner neighbourhood (reusing the AO samples)
+    instead of one flat value per face, so the GPU interpolates a gradient — fixes
+    the "blocky" per-face look (we were effectively "Minecraft Smooth Lighting:
+    OFF"). The averaging is Minecraft-accurate: solid/hidden corner cells count
+    as light 0 over a fixed ÷4, so the **AO darkening lives in the light average
+    itself** (no separate AO multiply). An earlier version excluded solids and
+    applied a separate AO term, which made concave corners ~2× too bright (inside
+    edges "lit up"); fixed.
+  - **Light curve (done):** the shader applies a multiplicative falloff (each
+    level ≈0.8× the previous) per channel in level-space, dimming skylight by
+    day/night *after* the curve so day (1.0) and night (0.26) surface brightness
+    are unchanged while torch light rolls off naturally and shadow edges deepen.
+    The 0.8 base is the tuning knob (higher = gentler/brighter falloff).
 - [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
       "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)
@@ -162,6 +198,22 @@ Not final — we'll make the call when we get there, but plan seams as if both a
 - [ ] **Block-destroy effects** — spawn particle/effect bursts when a block breaks
       (and likely a place effect + sound). Pairs naturally with the entity/particle
       work and audio. A reusable particle system is the real deliverable here.
+- [ ] **>9 placeable blocks need a real home** — the hotbar maps to digit keys
+      `1`–`9`, so it caps at 9 (kept there; torch was swapped in for Sandstone).
+      Sandstone is now unplaceable until there's a full inventory with the hotbar
+      as a 9-slot view (preferred — see Tier 1 Inventory), or hotbar paging/
+      categories. That's the real fix; the 9-slot swap is just the stopgap.
+- [ ] **Proper torch shape + wall mounting** — the torch is a flat cross billboard
+      placeholder. Want a real 3D torch post, and the ability to place it on the
+      *side* of a block (angled outward), like Minecraft. Depends on the non-cube
+      block-shape work (Tier 3) and a placement rule for which faces accept it.
+- [ ] **See-through flicker on block break** — for a fraction of a second after
+      breaking a block you can see through the world until the chunk remesh lands.
+      Cause: the edit marks the chunk dirty but the remesh runs later, behind the
+      time-sliced mesh budget, so newly-exposed neighbour faces aren't drawn for a
+      frame or two. Fix: remesh player-edited chunks immediately/synchronously (or
+      at top priority, same frame) so there's no gap — edits are rare and local, so
+      this won't blow the frame budget the way bulk streaming would.
 
 ## Engine/content split (the pluggability milestone)
 

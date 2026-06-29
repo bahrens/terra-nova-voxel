@@ -36,6 +36,8 @@ export const BLOCK = {
   FLOWER_RED: 22,
   FLOWER_YELLOW: 23,
   DEAD_BUSH: 24,
+  // light sources
+  TORCH: 25,
 };
 
 // Per-block definitions.
@@ -45,6 +47,7 @@ export const BLOCK = {
 //   render:      "cube" | "cross"
 //   needsSupport: destroyed if the solid block beneath it is removed. Small
 //                 ground plants set this; larger flora (cactus, logs) do not.
+//   light:       block-light emission level (0-15); torches glow, most blocks 0.
 const PLANT = { solid: false, transparent: true, opaque: false, render: "cross", needsSupport: true };
 
 export const BLOCKS = {
@@ -74,6 +77,8 @@ export const BLOCKS = {
   [BLOCK.FLOWER_RED]:    { name: "Red Flower",    tiles: { all: "flower_red" },    ...PLANT },
   [BLOCK.FLOWER_YELLOW]: { name: "Yellow Flower", tiles: { all: "flower_yellow" }, ...PLANT },
   [BLOCK.DEAD_BUSH]:     { name: "Dead Bush",     tiles: { all: "dead_bush" },     ...PLANT },
+
+  [BLOCK.TORCH]:         { name: "Torch",         tiles: { all: "torch" },         ...PLANT, light: 14 },
 };
 
 // Fill in defaults.
@@ -84,6 +89,7 @@ for (const id in BLOCKS) {
   if (b.opaque === undefined) b.opaque = true;
   if (b.render === undefined) b.render = "cube";
   if (b.needsSupport === undefined) b.needsSupport = false;
+  if (b.light === undefined) b.light = 0;
   const t = b.tiles;
   b.faces = {
     top: t.top || t.side || t.all,
@@ -123,7 +129,9 @@ export function needsSupport(id) {
 }
 
 // The blocks offered in the hotbar, in order.
+// Kept at 9 so it maps cleanly to digit keys 1-9. (A proper >9-block solution —
+// a full inventory with the hotbar as a 9-slot view — is a roadmap item.)
 export const HOTBAR = [
   BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND,
-  BLOCK.SANDSTONE, BLOCK.LOG, BLOCK.PLANK, BLOCK.LEAVES, BLOCK.GLASS,
+  BLOCK.LOG, BLOCK.PLANK, BLOCK.LEAVES, BLOCK.GLASS, BLOCK.TORCH,
 ];

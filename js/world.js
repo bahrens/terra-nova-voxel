@@ -3,9 +3,10 @@
 import * as THREE from "three";
 import { Chunk, CHUNK_SIZE, WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
 import { Noise } from "./noise.js";
-import { BLOCK, AIR, isSolid, needsSupport } from "./blocks.js";
+import { BLOCK, BLOCKS, AIR, isSolid, isOpaque, needsSupport } from "./blocks.js";
 import { pickBiome } from "./biomes.js";
 import { TextureAtlas } from "./textures.js";
+import { updateSkyLight, updateBlockLight } from "./light.js";
 
 const key = (cx, cz) => cx + "," + cz;
 const floorDiv = (a, b) => Math.floor(a / b);
@@ -66,6 +67,7 @@ export class World {
 
     this.genQueue = [];
     this.meshQueue = [];
+    this.lightQueue = new Set();   // chunk keys awaiting cross-chunk relight
     this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
     this.editsByChunk = new Map(); // chunkKey -> Map("wx,wy,wz" -> blockId): player edits
   }
@@ -108,17 +110,53 @@ export class World {
 
   buildMaterials() {
     const map = this.atlas.texture;
+    // Shared day/night uniform driven by Sky. Vertex colours carry
+    // r = AO×face shading, g = skylight, b = block light; the patched shader
+    // computes  tex × r × max(b, g × uSky)  so day/night is a uniform update
+    // (no re-meshing) and block light stays constant through the night. A small
+    // ambient floor keeps unlit areas from being pure black before torches exist.
+    const skyUniform = { value: 1 };
+    const debugUniform = { value: 0 }; // 1 = raw light view (toggle with L)
+    const patchLight = (mat) => {
+      mat.onBeforeCompile = (shader) => {
+        shader.uniforms.uSky = skyUniform;
+        shader.uniforms.uDebugLight = debugUniform;
+        shader.fragmentShader = "uniform float uSky;\nuniform float uDebugLight;\n" +
+          shader.fragmentShader.replace(
+          "#include <color_fragment>",
+          `#ifdef USE_COLOR
+             if (uDebugLight > 0.5) {
+               // Debug view: R = block light, G = skylight (raw 0-1), ignoring
+               // texture/AO/day-night so the light data is directly visible.
+               diffuseColor.rgb = vec3(vColor.b, vColor.g, 0.0);
+             } else {
+               // Light curve: each level is ~0.8x the previous for a natural falloff
+               // (vs a flat linear ramp). Applied per channel in level-space; sky is
+               // dimmed by day/night AFTER the curve so night brightness is unchanged.
+               // r = AO x face shading. 0.06 = ambient floor (no pure-black).
+               float skyC = pow(0.8, (1.0 - vColor.g) * 15.0) * uSky;
+               float blockC = pow(0.8, (1.0 - vColor.b) * 15.0);
+               diffuseColor.rgb *= max(vColor.r * max(skyC, blockC), 0.06);
+             }
+           #endif`
+        );
+      };
+    };
+
     const opaque = new THREE.MeshBasicMaterial({ map, vertexColors: true });
+    patchLight(opaque);
     const foliage = new THREE.MeshBasicMaterial({
       map, vertexColors: true, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide,
     });
+    patchLight(foliage);
     // depthWrite:true so overlapping water faces from different chunk meshes
     // don't cumulatively blend (which produced darker seams at chunk borders).
+    // Water keeps the flat vertex brightness + material-colour day/night for now.
     const water = new THREE.MeshBasicMaterial({
       map, vertexColors: true, transparent: true, opacity: 0.78,
       depthWrite: true, side: THREE.DoubleSide,
     });
-    return { opaque, foliage, water };
+    return { opaque, foliage, water, skyUniform, debugUniform };
   }
 
   // ---- Block access (world coordinates) ----
@@ -130,6 +168,66 @@ export class World {
     const chunk = this.chunks.get(key(cx, cz));
     if (!chunk) return AIR;
     return chunk.get(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
+  // Skylight (0-15) of a world cell, or 15 if its chunk isn't loaded (assume lit
+  // so the load edge doesn't go dark). Used by the mesher for face lighting.
+  getSkyLight(x, y, z) {
+    if (y < 0) return 0;
+    if (y >= WORLD_HEIGHT) return 15;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return 15;
+    return chunk.getSky(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
+  // Block light (0-15) of a world cell, or 0 if its chunk isn't loaded.
+  getBlockLight(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return 0;
+    return chunk.getBlockL(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
+  // Incrementally relight around a single block edit at (x,y,z): re-light only
+  // the cells whose light changes (crossing chunk borders), then remesh just the
+  // chunks that were touched. Far cheaper than recomputing whole chunks.
+  editLight(x, y, z) {
+    const relit = new Set();
+    const localChunk = (wx, wz) => this.chunks.get(key(floorDiv(wx, CHUNK_SIZE), floorDiv(wz, CHUNK_SIZE)));
+    const mark = (wx, wy, wz) => {
+      const cx = floorDiv(wx, CHUNK_SIZE), cz = floorDiv(wz, CHUNK_SIZE);
+      relit.add(key(cx, cz));
+      const lx = wx - cx * CHUNK_SIZE, lz = wz - cz * CHUNK_SIZE;
+      if (lx === 0) relit.add(key(cx - 1, cz));
+      else if (lx === CHUNK_SIZE - 1) relit.add(key(cx + 1, cz));
+      if (lz === 0) relit.add(key(cx, cz - 1));
+      else if (lz === CHUNK_SIZE - 1) relit.add(key(cx, cz + 1));
+    };
+    const acc = {
+      H: WORLD_HEIGHT,
+      opaqueAt: (ax, ay, az) => { const c = localChunk(ax, az); return c ? isOpaque(this.getBlock(ax, ay, az)) : true; },
+      emissionAt: (ax, ay, az) => BLOCKS[this.getBlock(ax, ay, az)]?.light || 0,
+      // Unloaded chunks count as dark (0), not phantom open-sky (15) — otherwise an
+      // edit near the loaded-world boundary could inject spurious light.
+      getSky: (ax, ay, az) => { const c = localChunk(ax, az); return c ? c.getSky(ax - c.cx * CHUNK_SIZE, ay, az - c.cz * CHUNK_SIZE) : 0; },
+      getBlockL: (ax, ay, az) => this.getBlockLight(ax, ay, az),
+      setSky: (ax, ay, az, v) => {
+        const c = localChunk(ax, az); if (!c) return false;
+        c.setSky(ax - c.cx * CHUNK_SIZE, ay, az - c.cz * CHUNK_SIZE, v); mark(ax, ay, az); return true;
+      },
+      setBlockL: (ax, ay, az, v) => {
+        const c = localChunk(ax, az); if (!c) return false;
+        c.setBlockL(ax - c.cx * CHUNK_SIZE, ay, az - c.cz * CHUNK_SIZE, v); mark(ax, ay, az); return true;
+      },
+    };
+    updateSkyLight(acc, x, y, z);
+    updateBlockLight(acc, x, y, z);
+    for (const k of relit) {
+      const c = this.chunks.get(k);
+      if (c) { c.dirty = true; this.queueMesh(c); }
+    }
   }
 
   setBlock(x, y, z, id, remesh = true) {
@@ -144,11 +242,13 @@ export class World {
     if (!remesh) return;
     chunk.dirty = true;
     this.queueMesh(chunk);
-    // Remesh neighbours if the edit touches a chunk border.
+    // Remesh neighbours if the edit touches a chunk border (face culling).
     if (lx === 0) this.markNeighbor(cx - 1, cz);
     if (lx === CHUNK_SIZE - 1) this.markNeighbor(cx + 1, cz);
     if (lz === 0) this.markNeighbor(cx, cz - 1);
     if (lz === CHUNK_SIZE - 1) this.markNeighbor(cx, cz + 1);
+    // Incrementally relight around the edit (also remeshes touched chunks).
+    this.editLight(x, y, z);
     // Wake the fluid so it flows into a broken block / re-settles around a placed one.
     this.enqueueWaterAround(x, y, z);
     // Drop any small plant left unsupported by this edit (no floating flowers).
@@ -263,6 +363,29 @@ export class World {
 
   queueMesh(chunk) {
     if (!this.meshQueue.includes(chunk)) this.meshQueue.push(chunk);
+  }
+
+  queueLight(cx, cz) {
+    if (this.chunks.has(key(cx, cz))) this.lightQueue.add(key(cx, cz));
+  }
+
+  // Recompute a chunk's light from its neighbours; if anything changed, remesh it
+  // and let the change ripple one chunk further. Light radius (≤15) is below the
+  // 16-wide chunk, so this settles within the immediate ring (no runaway cascade).
+  relightChunk(chunk) {
+    const prev = chunk.light.slice();
+    chunk.computeLight(this);
+    let changed = false;
+    for (let i = 0; i < prev.length; i++) {
+      if (prev[i] !== chunk.light[i]) { changed = true; break; }
+    }
+    if (!changed) return;
+    chunk.dirty = true;
+    this.queueMesh(chunk);
+    this.queueLight(chunk.cx - 1, chunk.cz);
+    this.queueLight(chunk.cx + 1, chunk.cz);
+    this.queueLight(chunk.cx, chunk.cz - 1);
+    this.queueLight(chunk.cx, chunk.cz + 1);
   }
 
   // ---- Terrain generation ----
@@ -405,6 +528,12 @@ export class World {
     this.floodWater(chunk);
     this.capIce(chunk);
     this.applyEdits(chunk); // overlay saved player edits
+    chunk.computeLight(this); // light this chunk, seeded from loaded neighbours
+    // Let neighbours re-receive light across the newly created border.
+    this.queueLight(cx - 1, cz);
+    this.queueLight(cx + 1, cz);
+    this.queueLight(cx, cz - 1);
+    this.queueLight(cx, cz + 1);
     return chunk;
   }
 
@@ -584,6 +713,7 @@ export class World {
     const now = (typeof performance !== "undefined") ? () => performance.now() : () => Date.now();
     const genMs = budget.genMs ?? 4;
     const meshMs = budget.meshMs ?? 6;
+    const lightMs = budget.lightMs ?? 4;
 
     // Queue generation (radius + 1 so mesh neighbours always have data).
     const genR = R + 1;
@@ -600,6 +730,18 @@ export class World {
     for (let i = 0; i < wanted.length; i++) {
       this.generateChunk(wanted[i].cx, wanted[i].cz);
       if (now() - tGen >= genMs) break; // always builds at least one
+    }
+
+    // Settle cross-chunk light propagation within a budget. relightChunk
+    // re-enqueues neighbours only when something changed, so this drains once a
+    // region's light reaches equilibrium.
+    const tLight = now();
+    while (this.lightQueue.size) {
+      const k = this.lightQueue.values().next().value;
+      this.lightQueue.delete(k);
+      const chunk = this.chunks.get(k);
+      if (chunk) this.relightChunk(chunk);
+      if (now() - tLight >= lightMs) break;
     }
 
     // Queue meshing for chunks in render distance whose neighbours exist.

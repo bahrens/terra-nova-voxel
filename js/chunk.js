@@ -48,6 +48,9 @@ export class Chunk {
     // Parallel water-level field for the fluid simulation: 0 none, 1-8 flowing,
     // 9 = source. Only meaningful where data[idx] === WATER.
     this.water = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * WORLD_HEIGHT);
+    // Packed per-voxel light: high nibble = skylight (0-15), low nibble = block
+    // light (0-15). Filled by computeLight(); read by the mesher and World.
+    this.light = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * WORLD_HEIGHT);
     this.dirty = true;
     this.meshes = null; // { opaque, foliage, water } THREE.Mesh
   }
@@ -64,6 +67,139 @@ export class Chunk {
 
   static idx(x, y, z) {
     return x + CHUNK_SIZE * z + CHUNK_SIZE * CHUNK_SIZE * y;
+  }
+
+  getSky(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    return (this.light[Chunk.idx(x, y, z)] >> 4) & 15;
+  }
+
+  getBlockL(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    return this.light[Chunk.idx(x, y, z)] & 15;
+  }
+
+  setSky(x, y, z, v) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    const i = Chunk.idx(x, y, z);
+    this.light[i] = (this.light[i] & 0x0f) | ((v & 15) << 4);
+  }
+
+  setBlockL(x, y, z, v) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    const i = Chunk.idx(x, y, z);
+    this.light[i] = (this.light[i] & 0xf0) | (v & 15);
+  }
+
+  // Recompute skylight (high nibble) and block light (low nibble) for the whole
+  // chunk. Seeds from open sky, emitter blocks (torches), AND the light of loaded
+  // horizontal neighbours (one step of decay across the border) so light crosses
+  // chunk seams. Both channels decay -1 per step and are blocked by opaque blocks;
+  // skylight additionally falls straight down at full level (sunlight columns).
+  // `world` resolves neighbour chunks; omit it for a chunk-local result.
+  computeLight(world) {
+    const L = this.light;
+    L.fill(0);
+    const S = CHUNK_SIZE;
+    const data = this.data;
+    const inBounds = (x, y, z) =>
+      x >= 0 && x < S && z >= 0 && z < S && y >= 0 && y < WORLD_HEIGHT;
+    const west = world && world.getChunk(this.cx - 1, this.cz);
+    const east = world && world.getChunk(this.cx + 1, this.cz);
+    const north = world && world.getChunk(this.cx, this.cz - 1);
+    const south = world && world.getChunk(this.cx, this.cz + 1);
+
+    // --- Skylight (high nibble) ---
+    {
+      const qx = [], qy = [], qz = [];
+      const seed = (x, y, z, level) => {
+        if (level <= 0) return;
+        const i = Chunk.idx(x, y, z);
+        if (isOpaque(data[i]) || ((L[i] >> 4) & 15) >= level) return;
+        L[i] = (L[i] & 0x0f) | (level << 4);
+        qx.push(x); qy.push(y); qz.push(z);
+      };
+      // Open-sky columns: full level down to the first opaque block.
+      for (let z = 0; z < S; z++)
+        for (let x = 0; x < S; x++)
+          for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
+            if (isOpaque(data[Chunk.idx(x, y, z)])) break;
+            seed(x, y, z, 15);
+          }
+      // Incoming from loaded neighbours (one horizontal step of decay).
+      for (let y = 0; y < WORLD_HEIGHT; y++)
+        for (let i = 0; i < S; i++) {
+          if (west) seed(0, y, i, west.getSky(S - 1, y, i) - 1);
+          if (east) seed(S - 1, y, i, east.getSky(0, y, i) - 1);
+          if (north) seed(i, y, 0, north.getSky(i, y, S - 1) - 1);
+          if (south) seed(i, y, S - 1, south.getSky(i, y, 0) - 1);
+        }
+      for (let head = 0; head < qx.length; head++) {
+        const x = qx[head], y = qy[head], z = qz[head];
+        const s = (L[Chunk.idx(x, y, z)] >> 4) & 15;
+        if (s <= 1) continue;
+        const N = [[x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
+                   [x, y + 1, z], [x, y - 1, z]];
+        for (const [nx, ny, nz] of N) {
+          if (!inBounds(nx, ny, nz)) continue;
+          const ni = Chunk.idx(nx, ny, nz);
+          if (isOpaque(data[ni])) continue;
+          const nl = (ny === y - 1 && s === 15) ? 15 : s - 1; // sunlight column
+          if (((L[ni] >> 4) & 15) < nl) {
+            L[ni] = (L[ni] & 0x0f) | (nl << 4);
+            qx.push(nx); qy.push(ny); qz.push(nz);
+          }
+        }
+      }
+    }
+
+    // --- Block light (low nibble) ---
+    {
+      const qx = [], qy = [], qz = [];
+      const seed = (x, y, z, level) => {
+        if (level <= 0) return;
+        const i = Chunk.idx(x, y, z);
+        if (isOpaque(data[i]) || (L[i] & 15) >= level) return;
+        L[i] = (L[i] & 0xf0) | level;
+        qx.push(x); qy.push(y); qz.push(z);
+      };
+      // Emitter blocks.
+      for (let y = 0; y < WORLD_HEIGHT; y++)
+        for (let z = 0; z < S; z++)
+          for (let x = 0; x < S; x++) {
+            const e = BLOCKS[data[Chunk.idx(x, y, z)]]?.light || 0;
+            if (e > 0) {
+              const i = Chunk.idx(x, y, z);
+              L[i] = (L[i] & 0xf0) | e;
+              qx.push(x); qy.push(y); qz.push(z);
+            }
+          }
+      // Incoming from loaded neighbours.
+      for (let y = 0; y < WORLD_HEIGHT; y++)
+        for (let i = 0; i < S; i++) {
+          if (west) seed(0, y, i, west.getBlockL(S - 1, y, i) - 1);
+          if (east) seed(S - 1, y, i, east.getBlockL(0, y, i) - 1);
+          if (north) seed(i, y, 0, north.getBlockL(i, y, S - 1) - 1);
+          if (south) seed(i, y, S - 1, south.getBlockL(i, y, 0) - 1);
+        }
+      for (let head = 0; head < qx.length; head++) {
+        const x = qx[head], y = qy[head], z = qz[head];
+        const b = L[Chunk.idx(x, y, z)] & 15;
+        if (b <= 1) continue;
+        const N = [[x + 1, y, z], [x - 1, y, z], [x, y, z + 1], [x, y, z - 1],
+                   [x, y + 1, z], [x, y - 1, z]];
+        for (const [nx, ny, nz] of N) {
+          if (!inBounds(nx, ny, nz)) continue;
+          const ni = Chunk.idx(nx, ny, nz);
+          if (isOpaque(data[ni])) continue;
+          const nl = b - 1;
+          if ((L[ni] & 15) < nl) {
+            L[ni] = (L[ni] & 0xf0) | nl;
+            qx.push(nx); qy.push(ny); qz.push(nz);
+          }
+        }
+      }
+    }
   }
 
   get(x, y, z) {
@@ -143,6 +279,10 @@ export class Chunk {
     const tile = def.faces[face.tile];
     const [u0, v0, u1, v1] = world.atlas.uv(tile);
     const light = face.light;
+    // Light of the cell this face opens into (always non-opaque). Smooth lighting
+    // averages it with the per-corner neighbours below, so it's gathered there.
+    const fSky = world.getSkyLight(wx + dx, wy + dy, wz + dz);
+    const fBlock = world.getBlockLight(wx + dx, wy + dy, wz + dz);
 
     // Face plane centre = block centre + 0.5 along normal.
     const cx = wx + 0.5 + dx * 0.5;
@@ -155,6 +295,7 @@ export class Chunk {
 
     const positions = [];
     const ao = [];
+    const skyV = [], blockV = [];
     for (let i = 0; i < 4; i++) {
       const [su, sv] = signs[i];
       positions.push([
@@ -162,16 +303,33 @@ export class Chunk {
         cy + 0.5 * su * u[1] + 0.5 * sv * v[1],
         cz + 0.5 * su * u[2] + 0.5 * sv * v[2],
       ]);
-      // AO: sample the two edge neighbours + corner in the layer in front of face.
-      const s1 = isOpaque(world.getBlock(
-        wx + dx + su * u[0], wy + dy + su * u[1], wz + dz + su * u[2]));
-      const s2 = isOpaque(world.getBlock(
-        wx + dx + sv * v[0], wy + dy + sv * v[1], wz + dz + sv * v[2]));
-      const corner = isOpaque(world.getBlock(
-        wx + dx + su * u[0] + sv * v[0],
-        wy + dy + su * u[1] + sv * v[1],
-        wz + dz + su * u[2] + sv * v[2]));
-      ao.push(aoValue(s1 ? 1 : 0, s2 ? 1 : 0, corner ? 1 : 0));
+      // The three neighbours sharing this corner in the layer in front of the
+      // face (edge1, edge2, diagonal) — reused for both AO and smooth lighting.
+      const e1x = wx + dx + su * u[0], e1y = wy + dy + su * u[1], e1z = wz + dz + su * u[2];
+      const e2x = wx + dx + sv * v[0], e2y = wy + dy + sv * v[1], e2z = wz + dz + sv * v[2];
+      const ccx = wx + dx + su * u[0] + sv * v[0],
+            ccy = wy + dy + su * u[1] + sv * v[1],
+            ccz = wz + dz + su * u[2] + sv * v[2];
+      const s1 = isOpaque(world.getBlock(e1x, e1y, e1z));
+      const s2 = isOpaque(world.getBlock(e2x, e2y, e2z));
+      const cnr = isOpaque(world.getBlock(ccx, ccy, ccz));
+      ao.push(aoValue(s1 ? 1 : 0, s2 ? 1 : 0, cnr ? 1 : 0));
+
+      // Smooth lighting, Minecraft-style: average the face cell with its three
+      // corner neighbours over a FIXED divisor of 4, counting solid/hidden cells
+      // as light 0. That zero-contribution is what darkens concave corners — i.e.
+      // the ambient-occlusion effect lives in the light average itself (so there's
+      // no separate AO multiply below). Convex edges and flat faces keep full
+      // light, so inside corners no longer flare bright.
+      const occluded = cnr || (s1 && s2);
+      const eS1 = s1 ? 0 : world.getSkyLight(e1x, e1y, e1z);
+      const eS2 = s2 ? 0 : world.getSkyLight(e2x, e2y, e2z);
+      const cS = occluded ? 0 : world.getSkyLight(ccx, ccy, ccz);
+      skyV.push((fSky + eS1 + eS2 + cS) / 4 / 15);
+      const eB1 = s1 ? 0 : world.getBlockLight(e1x, e1y, e1z);
+      const eB2 = s2 ? 0 : world.getBlockLight(e2x, e2y, e2z);
+      const cB = occluded ? 0 : world.getBlockLight(ccx, ccy, ccz);
+      blockV.push((fBlock + eB1 + eB2 + cB) / 4 / 15);
     }
 
     const baseIndex = buf.positions.length / 3;
@@ -179,8 +337,9 @@ export class Chunk {
       buf.positions.push(positions[i][0], positions[i][1], positions[i][2]);
       buf.normals.push(dx, dy, dz);
       buf.uvs.push(uvCoords[i][0], uvCoords[i][1]);
-      const b = light * AO_LEVELS[ao[i]];
-      buf.colors.push(b, b, b);
+      // r = directional face shading only (AO now lives in the smoothed light),
+      // g = skylight, b = block light (both smoothed per vertex).
+      buf.colors.push(light, skyV[i], blockV[i]);
     }
 
     // Flip quad triangulation to keep AO gradients smooth.
@@ -198,6 +357,8 @@ export class Chunk {
     const tile = def.faces.side;
     const [u0, v0, u1, v1] = world.atlas.uv(tile);
     const b = 0.95; // plants render near full-bright
+    const sky = world.getSkyLight(wx, wy, wz) / 15; // plant sits in its own cell
+    const block = world.getBlockLight(wx, wy, wz) / 15; // torches light their own cell
     const a = 0.146, c = 0.854; // inset so the X fits inside the cell
 
     const quads = [
@@ -212,7 +373,7 @@ export class Chunk {
         buf.positions.push(wx + q[i][0], wy + q[i][1], wz + q[i][2]);
         buf.normals.push(0, 1, 0);
         buf.uvs.push(uvs[i][0], uvs[i][1]);
-        buf.colors.push(b, b, b);
+        buf.colors.push(b, sky, block);
       }
       buf.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
     }
