@@ -3,9 +3,10 @@
 import * as THREE from "three";
 import { Chunk, CHUNK_SIZE, WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
 import { Noise } from "./noise.js";
-import { BLOCK, AIR, isSolid, needsSupport } from "./blocks.js";
+import { BLOCK, BLOCKS, AIR, isSolid, isOpaque, needsSupport } from "./blocks.js";
 import { pickBiome } from "./biomes.js";
 import { TextureAtlas } from "./textures.js";
+import { updateSkyLight, updateBlockLight } from "./light.js";
 
 const key = (cx, cz) => cx + "," + cz;
 const floorDiv = (a, b) => Math.floor(a / b);
@@ -174,6 +175,44 @@ export class World {
     return chunk.getBlockL(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
   }
 
+  // Incrementally relight around a single block edit at (x,y,z): re-light only
+  // the cells whose light changes (crossing chunk borders), then remesh just the
+  // chunks that were touched. Far cheaper than recomputing whole chunks.
+  editLight(x, y, z) {
+    const relit = new Set();
+    const localChunk = (wx, wz) => this.chunks.get(key(floorDiv(wx, CHUNK_SIZE), floorDiv(wz, CHUNK_SIZE)));
+    const mark = (wx, wy, wz) => {
+      const cx = floorDiv(wx, CHUNK_SIZE), cz = floorDiv(wz, CHUNK_SIZE);
+      relit.add(key(cx, cz));
+      const lx = wx - cx * CHUNK_SIZE, lz = wz - cz * CHUNK_SIZE;
+      if (lx === 0) relit.add(key(cx - 1, cz));
+      else if (lx === CHUNK_SIZE - 1) relit.add(key(cx + 1, cz));
+      if (lz === 0) relit.add(key(cx, cz - 1));
+      else if (lz === CHUNK_SIZE - 1) relit.add(key(cx, cz + 1));
+    };
+    const acc = {
+      H: WORLD_HEIGHT,
+      opaqueAt: (ax, ay, az) => { const c = localChunk(ax, az); return c ? isOpaque(this.getBlock(ax, ay, az)) : true; },
+      emissionAt: (ax, ay, az) => BLOCKS[this.getBlock(ax, ay, az)]?.light || 0,
+      getSky: (ax, ay, az) => this.getSkyLight(ax, ay, az),
+      getBlockL: (ax, ay, az) => this.getBlockLight(ax, ay, az),
+      setSky: (ax, ay, az, v) => {
+        const c = localChunk(ax, az); if (!c) return false;
+        c.setSky(ax - c.cx * CHUNK_SIZE, ay, az - c.cz * CHUNK_SIZE, v); mark(ax, ay, az); return true;
+      },
+      setBlockL: (ax, ay, az, v) => {
+        const c = localChunk(ax, az); if (!c) return false;
+        c.setBlockL(ax - c.cx * CHUNK_SIZE, ay, az - c.cz * CHUNK_SIZE, v); mark(ax, ay, az); return true;
+      },
+    };
+    updateSkyLight(acc, x, y, z);
+    updateBlockLight(acc, x, y, z);
+    for (const k of relit) {
+      const c = this.chunks.get(k);
+      if (c) { c.dirty = true; this.queueMesh(c); }
+    }
+  }
+
   setBlock(x, y, z, id, remesh = true) {
     if (y < 0 || y >= WORLD_HEIGHT) return;
     const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
@@ -184,19 +223,15 @@ export class World {
     chunk.setW(lx, y, lz, 0); // the cell's standing water is cleared by the edit
     this.recordEdit(x, y, z, id); // remember player edits for save/load
     if (!remesh) return;
-    chunk.computeLight(this); // relight before remeshing (e.g. digging a shaft to sky)
     chunk.dirty = true;
     this.queueMesh(chunk);
-    // Remesh neighbours if the edit touches a chunk border.
+    // Remesh neighbours if the edit touches a chunk border (face culling).
     if (lx === 0) this.markNeighbor(cx - 1, cz);
     if (lx === CHUNK_SIZE - 1) this.markNeighbor(cx + 1, cz);
     if (lz === 0) this.markNeighbor(cx, cz - 1);
     if (lz === CHUNK_SIZE - 1) this.markNeighbor(cx, cz + 1);
-    // Propagate the light change into neighbours across borders.
-    this.queueLight(cx - 1, cz);
-    this.queueLight(cx + 1, cz);
-    this.queueLight(cx, cz - 1);
-    this.queueLight(cx, cz + 1);
+    // Incrementally relight around the edit (also remeshes touched chunks).
+    this.editLight(x, y, z);
     // Wake the fluid so it flows into a broken block / re-settles around a placed one.
     this.enqueueWaterAround(x, y, z);
     // Drop any small plant left unsupported by this edit (no floating flowers).

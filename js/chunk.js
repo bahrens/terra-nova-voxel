@@ -79,6 +79,18 @@ export class Chunk {
     return this.light[Chunk.idx(x, y, z)] & 15;
   }
 
+  setSky(x, y, z, v) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    const i = Chunk.idx(x, y, z);
+    this.light[i] = (this.light[i] & 0x0f) | ((v & 15) << 4);
+  }
+
+  setBlockL(x, y, z, v) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    const i = Chunk.idx(x, y, z);
+    this.light[i] = (this.light[i] & 0xf0) | (v & 15);
+  }
+
   // Recompute skylight (high nibble) and block light (low nibble) for the whole
   // chunk. Seeds from open sky, emitter blocks (torches), AND the light of loaded
   // horizontal neighbours (one step of decay across the border) so light crosses
