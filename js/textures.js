@@ -174,6 +174,11 @@ const TILE_PAINTERS = {
   coal_item: lumpTile(0x2e2e2e),
   iron_item: lumpTile(0xc2b3a3),
   gold_item: lumpTile(0xf4d24a),
+  stick_item: (ctx, x0, y0) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    ctx.strokeStyle = "#7a5326"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x0 + 5, y0 + 13); ctx.lineTo(x0 + 11, y0 + 3); ctx.stroke();
+  },
   // tool icons (handle + tier-coloured head): wood / stone / iron
   wood_pickaxe: toolTile("pickaxe", "#a9712f"),
   stone_pickaxe: toolTile("pickaxe", "#8d8d90"),

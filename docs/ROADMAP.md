@@ -148,8 +148,16 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       (Minecraft-style). Held tool tracked via the hotbar selection. *Remaining:*
       tools should be **earnable** (needs crafting), tool durability, multi-stage
       crack texture, and a break sound (needs audio).
-- [ ] **Crafting** — a **recipe registry** (crafting grid + smelting/furnace).
-      Textbook pluggability seam — a data-driven table each downstream game redefines.
+- [~] **Crafting** — *increment 1 done (`js/recipes.js`):* a data-driven recipe
+      registry (shapeless for now) + a **counted inventory** (item id → count) fed
+      by **picking up drops**, plus a crafting UI in the inventory screen (`E`):
+      shows your item counts and the recipe list, craftable rows light up, clicking
+      consumes inputs and produces the output. Starter recipes: planks, sticks,
+      torches, and the wood/stone/iron tools — so the survival loop *mine → drops →
+      collect → craft tools* now closes. Collected/crafted items can be clicked
+      onto the hotbar to use them. *Remaining:* survival **placing/wielding consumes
+      counts** (today still creative-infinite), grid-shaped recipes, smelting/
+      furnace, and unifying the hotbar as a view of the inventory.
 - [ ] **Survival vs creative mode** — the game-mode distinction and the rules that
       hang off it: health, fall damage, drowning, hunger. Also a pluggability
       concern ("game rules" are per-game config). **See open question below.**

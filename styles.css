@@ -152,6 +152,29 @@ html, body {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .inv-sub { margin: 22px 0 8px; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; opacity: .55; }
+.inv-faint { text-transform: none; letter-spacing: 0; opacity: .7; font-size: 11px; }
+/* item count badge on inventory cells */
+.inv-item .inv-count {
+  position: absolute; right: 2px; bottom: 1px;
+  font-size: 11px; font-weight: 700;
+  text-shadow: 1px 1px 0 #000, -1px 0 0 #000;
+}
+.inv-item { position: relative; }
+/* crafting recipe rows */
+.inv-recipes { display: flex; flex-direction: column; gap: 6px; }
+.inv-recipe {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  opacity: .45;
+}
+.inv-recipe.craftable { opacity: 1; cursor: pointer; border-color: rgba(182,240,168,.4); }
+.inv-recipe.craftable:hover { background: rgba(182,240,168,.14); }
+.inv-recipe canvas { width: 30px; height: 30px; image-rendering: pixelated; }
+.inv-recipe .r-out { font-size: 13px; font-weight: 600; min-width: 130px; }
+.inv-recipe .r-in { font-size: 11px; opacity: .75; }
 .inv-hotbar { display: flex; gap: 4px; justify-content: center; }
 .inv-hotbar .slot { cursor: pointer; }
 .inv-hotbar .slot .label { display: none; }
