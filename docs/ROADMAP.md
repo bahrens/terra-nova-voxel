@@ -92,8 +92,12 @@ lost short list. Items the original list explicitly named are marked ⭐.)
     light *per vertex* over the 2×2 corner neighbourhood (reusing the AO samples)
     instead of one flat value per face, so the GPU interpolates a gradient — fixes
     the "blocky" per-face look (we were effectively "Minecraft Smooth Lighting:
-    OFF"). Optional follow-up: a multiplicative light *curve* in the shader
-    (each level ≈0.8× the next) for more natural falloff; currently linear.
+    OFF").
+  - **Light curve (done):** the shader applies a multiplicative falloff (each
+    level ≈0.8× the previous) per channel in level-space, dimming skylight by
+    day/night *after* the curve so day (1.0) and night (0.26) surface brightness
+    are unchanged while torch light rolls off naturally and shadow edges deepen.
+    The 0.8 base is the tuning knob (higher = gentler/brighter falloff).
 - [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
       "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)

@@ -122,7 +122,13 @@ export class World {
         shader.fragmentShader = "uniform float uSky;\n" + shader.fragmentShader.replace(
           "#include <color_fragment>",
           `#ifdef USE_COLOR
-             diffuseColor.rgb *= max(vColor.r * max(vColor.b, vColor.g * uSky), 0.06);
+             // Light curve: each level is ~0.8x the previous for a natural falloff
+             // (vs a flat linear ramp). Applied per channel in level-space; sky is
+             // dimmed by day/night AFTER the curve so night brightness is unchanged.
+             // r = AO x face shading. 0.06 = ambient floor (no pure-black).
+             float skyC = pow(0.8, (1.0 - vColor.g) * 15.0) * uSky;
+             float blockC = pow(0.8, (1.0 - vColor.b) * 15.0);
+             diffuseColor.rgb *= max(vColor.r * max(skyC, blockC), 0.06);
            #endif`
         );
       };
