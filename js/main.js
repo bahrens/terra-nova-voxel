@@ -45,35 +45,79 @@ const player = new Player(camera, world, scene);
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 if (saved?.sky?.t != null) sky.t = saved.sky.t;
 
-// ---- Hotbar ----
+// ---- Hotbar + inventory ----
+// The hotbar is 9 mutable slots (a block id or null), customised from the
+// inventory and persisted in the save; it defaults to the built-in HOTBAR.
+function sanitizeHotbar(arr) {
+  if (!Array.isArray(arr)) return null;
+  const out = [];
+  for (let i = 0; i < 9; i++) { const v = arr[i]; out.push(v != null && BLOCKS[v] ? v : null); }
+  return out;
+}
+let hotbar = sanitizeHotbar(saved?.hotbar) || [...HOTBAR];
 let selected = 0;
+
 const hotbarEl = document.getElementById("hotbar");
-function buildHotbar() {
-  hotbarEl.innerHTML = "";
-  HOTBAR.forEach((id, i) => {
-    const def = BLOCKS[id];
+const invHotbarEl = document.getElementById("invHotbar");
+const invGridEl = document.getElementById("invGrid");
+
+// Render the 9 hotbar slots into `el`; when clickable (the inventory copy),
+// clicking selects a slot and right-clicking clears it.
+function renderSlots(el, clickable) {
+  el.innerHTML = "";
+  hotbar.forEach((id, i) => {
+    const def = id != null ? BLOCKS[id] : null;
     const slot = document.createElement("div");
     slot.className = "slot" + (i === selected ? " selected" : "");
-    const icon = world.atlas.iconCanvas(def.faces.side, 38);
-    slot.appendChild(icon);
+    if (def) slot.appendChild(world.atlas.iconCanvas(def.faces.side, 38));
     const num = document.createElement("span");
-    num.className = "num"; num.textContent = i + 1;
-    slot.appendChild(num);
-    const label = document.createElement("span");
-    label.className = "label"; label.textContent = def.name;
-    slot.appendChild(label);
-    hotbarEl.appendChild(slot);
+    num.className = "num"; num.textContent = i + 1; slot.appendChild(num);
+    if (def) {
+      const label = document.createElement("span");
+      label.className = "label"; label.textContent = def.name; slot.appendChild(label);
+    }
+    if (clickable) {
+      slot.addEventListener("click", () => setSelected(i, true));
+      slot.addEventListener("contextmenu", (e) => {
+        e.preventDefault(); hotbar[i] = null;
+        if (i === selected) player.placeId = 0;
+        buildHotbars();
+      });
+    }
+    el.appendChild(slot);
   });
 }
+function buildHotbars() { renderSlots(hotbarEl, false); renderSlots(invHotbarEl, true); }
+function applySelection() {
+  [hotbarEl, invHotbarEl].forEach((el) =>
+    [...el.children].forEach((c, i) => c.classList.toggle("selected", i === selected)));
+}
 function setSelected(arg, isIndex) {
-  const len = HOTBAR.length;
-  selected = isIndex ? Math.max(0, Math.min(len - 1, arg))
-                     : (selected + arg + len) % len;
-  player.placeId = HOTBAR[selected];
-  [...hotbarEl.children].forEach((el, i) => el.classList.toggle("selected", i === selected));
+  const len = hotbar.length;
+  selected = isIndex ? Math.max(0, Math.min(len - 1, arg)) : (selected + arg + len) % len;
+  player.placeId = hotbar[selected] ?? 0;
+  applySelection();
 }
 player.onSelect = setSelected;
-buildHotbar();
+
+// Creative palette: one cell per block; click assigns it to the selected slot.
+function buildPalette() {
+  invGridEl.innerHTML = "";
+  Object.keys(BLOCKS).map(Number).forEach((id) => {
+    const def = BLOCKS[id];
+    const cell = document.createElement("div");
+    cell.className = "inv-item"; cell.title = def.name;
+    cell.appendChild(world.atlas.iconCanvas(def.faces.side, 34));
+    const name = document.createElement("span");
+    name.className = "inv-name"; name.textContent = def.name; cell.appendChild(name);
+    cell.addEventListener("click", () => {
+      hotbar[selected] = id; player.placeId = id; buildHotbars();
+    });
+    invGridEl.appendChild(cell);
+  });
+}
+buildPalette();
+buildHotbars();
 setSelected(0, true);
 
 // ---- Pointer lock / menu ----
@@ -88,13 +132,29 @@ const newWorldBtn = document.getElementById("newWorldBtn");
 if (newWorldBtn) newWorldBtn.addEventListener("click", () => {
   if (confirm("Start a new world? This deletes your saved world.")) newWorld();
 });
+// Inventory overlay: opening exits pointer lock (so the cursor works); closing
+// re-locks. pointerlockchange decides whether an unlock means "inventory" or
+// the pause menu.
+const inventoryEl = document.getElementById("inventory");
+let inventoryOpen = false;
+function openInventory() { if (!started || inventoryOpen) return; inventoryOpen = true; document.exitPointerLock(); }
+function closeInventory() { if (!inventoryOpen) return; inventoryOpen = false; inventoryEl.classList.remove("active"); canvas.requestPointerLock(); }
+
 document.addEventListener("pointerlockchange", () => {
   const locked = document.pointerLockElement === canvas;
   player.enabled = locked;
-  menu.classList.toggle("hidden", locked);
   crosshair.classList.toggle("active", locked);
   hud.classList.toggle("active", locked);
   debugEl.classList.toggle("active", locked);
+  if (locked) {
+    menu.classList.add("hidden");
+    inventoryEl.classList.remove("active");
+    inventoryOpen = false;
+  } else {
+    // Unlocked: show the inventory if that's why we unlocked, else the pause menu.
+    inventoryEl.classList.toggle("active", inventoryOpen);
+    menu.classList.toggle("hidden", inventoryOpen);
+  }
 });
 
 window.addEventListener("resize", () => {
@@ -152,6 +212,7 @@ function saveGame() {
       yaw: player.yaw, pitch: player.pitch, flying: player.flying,
     },
     sky: { t: sky.t },
+    hotbar: hotbar.slice(),
     edits: world.serializeEdits(),
   };
   try {
@@ -183,6 +244,8 @@ window.addEventListener("beforeunload", () => saveGame());
 document.addEventListener("keydown", (e) => {
   if (!started) return;
   if (e.code === "KeyK") saveGame();
+  if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
+  if (e.code === "Escape" && inventoryOpen) closeInventory();
   // Debug: toggle the raw light view (R = block light, G = skylight).
   if (e.code === "KeyL") {
     const u = world.materials.debugUniform;
