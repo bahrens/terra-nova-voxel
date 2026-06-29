@@ -258,8 +258,9 @@ document.addEventListener("keydown", (e) => {
     player.creative = !player.creative;
     toast(player.creative ? "Creative: instant break" : "Survival: hold to mine");
   }
-  // Toggle the profiler overlay.
+  // Toggle the profiler overlay; V copies a snapshot to the clipboard.
   if (e.code === "KeyP") { prof.enabled = !prof.enabled; toast(prof.enabled ? "Profiler: ON" : "Profiler: OFF"); }
+  if (e.code === "KeyV") copyProfilerSnapshot();
   // Debug: spawn a critter a couple blocks ahead.
   if (e.code === "KeyM") {
     const f = player.forwardVector(false);
@@ -367,7 +368,7 @@ function updateProfiler() {
   const info = renderer.info.render;
   const ms = (l) => prof.get(l).toFixed(2).padStart(6);
   profilerEl.textContent =
-    `PROFILER (P)        fps ${fps}\n` +
+    `PROFILER (P·V copy) fps ${fps}\n` +
     `frame  ${ms("frame")} ms\n` +
     ` player${ms("player")}\n` +
     ` world ${ms("world")}\n` +
@@ -380,6 +381,23 @@ function updateProfiler() {
     `draws ${info.calls}   tris ${(info.triangles / 1000).toFixed(0)}k\n` +
     `chunks ${world.chunks.size}  ents ${entities.list.length}\n` +
     `meshQ ${world.meshQueue.length}  litQ ${world.lightQueue.size}`;
+}
+
+// Copy a compact, paste-ready profiler snapshot to the clipboard (V), so the
+// numbers from a slow frame are one keypress + paste away.
+function copyProfilerSnapshot() {
+  const ms = (l) => prof.get(l).toFixed(2);
+  const info = renderer.info.render;
+  const text =
+    `Terra Nova profiler @ ${fps} fps, frame ${ms("frame")}ms\n` +
+    `player ${ms("player")} | world ${ms("world")} (gen ${ms("gen")}, light ${ms("light")}, mesh ${ms("mesh")}) ` +
+    `| entity ${ms("entity")} | sky ${ms("sky")} | render ${ms("render")}\n` +
+    `draws ${info.calls} | tris ${info.triangles} | chunks ${world.chunks.size} | ` +
+    `ents ${entities.list.length} | meshQ ${world.meshQueue.length} | litQ ${world.lightQueue.size}`;
+  const ok = () => toast("Profiler copied — paste it to share");
+  const fallback = () => { console.log(text); toast("Profiler logged to console (clipboard blocked)"); };
+  try { navigator.clipboard.writeText(text).then(ok, fallback); }
+  catch { fallback(); }
 }
 
 prime();
