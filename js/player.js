@@ -1,7 +1,7 @@
 // Player: first-person controls, AABB voxel collision, gravity/flight, and
 // DDA voxel raycasting for breaking and placing blocks.
 import * as THREE from "three";
-import { isSolid } from "./blocks.js";
+import { isSolid, blockHardness } from "./blocks.js";
 import { BLOCK } from "./blocks.js";
 
 const HALF_WIDTH = 0.3;
@@ -34,13 +34,45 @@ export class Player {
     this.keys = new Set();
     this.selected = 0; // hotbar index, set by main
 
+    this.creative = false; // instant break (no mining) when true
+    this.leftDown = false;
+    this.mining = null;    // { x, y, z, progress } while breaking by hand
+
     this.highlight = this.makeHighlight();
     scene.add(this.highlight);
+    this.crack = this.makeCrack();
+    scene.add(this.crack);
 
     this.onSelect = null; // callback(deltaOrIndex) hook set by main
     this.onBreak = null;  // callback(x, y, z, blockId) when a block is broken
 
     this.bindInput();
+  }
+
+  // A translucent crack overlay shown on the block being mined, fading in with
+  // progress. A procedural crack texture keeps it asset-free.
+  makeCrack() {
+    const c = document.createElement("canvas");
+    c.width = c.height = 16;
+    const ctx = c.getContext("2d");
+    ctx.strokeStyle = "rgba(0,0,0,0.8)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      let x = 8, y = 8, a = (i / 5) * Math.PI * 2;
+      ctx.beginPath(); ctx.moveTo(x, y);
+      for (let s = 0; s < 5; s++) {
+        a += (Math.random() - 0.5) * 1.3;
+        x += Math.cos(a) * 3; y += Math.sin(a) * 3;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter;
+    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.01, 1.01, 1.01), mat);
+    mesh.visible = false;
+    return mesh;
   }
 
   makeHighlight() {
@@ -85,8 +117,11 @@ export class Player {
     }, { passive: true });
     document.addEventListener("mousedown", (e) => {
       if (!this.enabled) return;
-      if (e.button === 0) this.breakBlock();
+      if (e.button === 0) { this.leftDown = true; if (this.creative) this.breakBlock(); }
       else if (e.button === 2) this.placeBlock();
+    });
+    document.addEventListener("mouseup", (e) => {
+      if (e.button === 0) { this.leftDown = false; this.mining = null; }
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
   }
@@ -161,6 +196,33 @@ export class Player {
     this.camera.rotation.set(this.pitch, this.yaw, 0);
 
     this.updateHighlight();
+    this.updateMining(dt);
+  }
+
+  // Hold-to-break mining: accumulate progress on the targeted block per its
+  // hardness; break + drop when full. Resets if the target changes or the button
+  // is released. Creative mode (instant break) is handled on mousedown instead.
+  updateMining(dt) {
+    if (!this.leftDown || this.creative) { this.mining = null; this.crack.visible = false; return; }
+    const hit = this.raycast();
+    if (!hit) { this.mining = null; this.crack.visible = false; return; }
+    const hardness = blockHardness(hit.block);
+    if (!isFinite(hardness)) { this.mining = null; this.crack.visible = false; return; } // unbreakable
+
+    if (!this.mining || this.mining.x !== hit.x || this.mining.y !== hit.y || this.mining.z !== hit.z) {
+      this.mining = { x: hit.x, y: hit.y, z: hit.z, progress: 0 };
+    }
+    this.mining.progress += hardness > 0 ? dt / hardness : 1;
+
+    this.crack.visible = true;
+    this.crack.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+    this.crack.material.opacity = 0.15 + 0.55 * Math.min(1, this.mining.progress);
+
+    if (this.mining.progress >= 1) {
+      this.breakBlock();
+      this.mining = null;
+      this.crack.visible = false;
+    }
   }
 
   moveAxis(comp, amount) {
