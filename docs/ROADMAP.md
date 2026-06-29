@@ -208,15 +208,20 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 - [~] **Performance — in progress.** Profiler (`P`, `js/profiler.js`) added as a
       permanent dev tool (per-section ms, draws, tris, queues, worst-frame hold).
       **Diagnosis (2026-06-29):** two distinct regimes —
-      (1) *Flying fast → CPU-bound on meshing* (mesh ~10ms/frame, meshQ backing up
-      to ~84, 192ms spikes). **Fixed:** the mesher now snapshots the chunk + its
-      1-block border into reusable flat arrays once, then meshes from array reads
-      instead of ~38 cross-chunk `getBlock`/`getSkyLight`/`getBlockLight` Map
-      lookups per face — far fewer slow lookups + no per-mesh allocation (also
-      kills GC spikes). *Verify the mesh-ms drop in the profiler.*
-      (2) *Standing still → GPU-bound* (~800k triangles, ~700 draws). Still open:
-      **greedy meshing** (merge coplanar faces — fewer tris) is the lever there;
-      smooth-lighting limits merges to faces with matching corner light.
+      (1) *Flying fast → CPU-bound on meshing* (mesh ~10ms/frame, meshQ ~84, 192ms
+      spikes). **Improved:** the mesher now snapshots the chunk + its 1-block border
+      into reusable flat arrays once, then meshes from array reads instead of ~38
+      cross-chunk Map lookups per face — meshQ now drains far faster (84→36) and
+      spikes shrank. Residual: when you out-fly the streamer, all three budgets
+      (gen/light/mesh ≈ 4/4/6ms) saturate, so the frame caps ~42fps — but normal
+      play doesn't saturate them, so it's not felt in gameplay.
+      (2) *Standing still → GPU-bound* (~800k triangles, ~700 draws).
+      **Status: paused by choice (2026-06-29)** — current state is fine in normal
+      play; the two big levers are documented for when more game elements actually
+      stress the frame (mobs/effects/etc.). Pull them then, profiler ready:
+      • **Web-worker gen/mesh/light** — raises the streaming ceiling (regime 1).
+      • **Greedy meshing** — cuts triangle count (regime 2); smooth-lighting limits
+        merges to faces with matching corner light.
 - [ ] **Web-worker chunk gen/meshing** — get generation off the main thread before
       worlds get big. Matters more once entities + lighting raise per-frame cost.
       Strongest lever for the 30-fps drops above.
