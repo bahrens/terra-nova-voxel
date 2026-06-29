@@ -288,12 +288,18 @@ function toast(msg) {
 // ---- Main loop ----
 const clock = new THREE.Clock();
 let fpsAcc = 0, fpsFrames = 0, fps = 0;
+let peakRealMs = 0; // worst real frame time since last copy (captures stutters)
 const prof = new Profiler();
 
 function start() {
   let waterAccum = 0;
   const loop = () => {
     const dt = clock.getDelta();
+    // Real frame interval reflects true fps incl. GPU/present (clamped to ignore
+    // load/tab-switch hitches); peak-held so a brief stutter survives until copied.
+    const realMs = Math.min(dt * 1000, 250);
+    prof.record("real", realMs);
+    peakRealMs = Math.max(peakRealMs, realMs);
     const fStart = performance.now();
     if (player.enabled) prof.time("player", () => player.update(dt));
     prof.time("world", () => world.update(player.position));
@@ -367,9 +373,11 @@ function updateProfiler() {
   profilerEl.classList.add("active");
   const info = renderer.info.render;
   const ms = (l) => prof.get(l).toFixed(2).padStart(6);
+  const minFps = peakRealMs > 0 ? Math.round(1000 / peakRealMs) : fps;
   profilerEl.textContent =
     `PROFILER (P·V copy) fps ${fps}\n` +
-    `frame  ${ms("frame")} ms\n` +
+    `real  ${ms("real")} ms  peak ${peakRealMs.toFixed(0)} (min ${minFps}fps)\n` +
+    `cpu   ${ms("frame")} ms\n` +
     ` player${ms("player")}\n` +
     ` world ${ms("world")}\n` +
     `   gen ${ms("gen")}\n` +
@@ -388,8 +396,9 @@ function updateProfiler() {
 function copyProfilerSnapshot() {
   const ms = (l) => prof.get(l).toFixed(2);
   const info = renderer.info.render;
+  const minFps = peakRealMs > 0 ? Math.round(1000 / peakRealMs) : fps;
   const text =
-    `Terra Nova profiler @ ${fps} fps, frame ${ms("frame")}ms\n` +
+    `Terra Nova profiler @ ${fps} fps | real ${ms("real")}ms, worst ${peakRealMs.toFixed(0)}ms (min ${minFps}fps) | cpu-frame ${ms("frame")}ms\n` +
     `player ${ms("player")} | world ${ms("world")} (gen ${ms("gen")}, light ${ms("light")}, mesh ${ms("mesh")}) ` +
     `| entity ${ms("entity")} | sky ${ms("sky")} | render ${ms("render")}\n` +
     `draws ${info.calls} | tris ${info.triangles} | chunks ${world.chunks.size} | ` +
@@ -398,6 +407,7 @@ function copyProfilerSnapshot() {
   const fallback = () => { console.log(text); toast("Profiler logged to console (clipboard blocked)"); };
   try { navigator.clipboard.writeText(text).then(ok, fallback); }
   catch { fallback(); }
+  peakRealMs = 0; // reset the worst-frame hold for the next measurement window
 }
 
 prime();
