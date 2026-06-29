@@ -284,7 +284,7 @@ function start() {
     const dt = clock.getDelta();
     if (player.enabled) player.update(dt);
     world.update(player.position);
-    if (player.enabled) entities.update(dt, player);
+    if (player.enabled) entities.update(dt, player, sky.brightness);
     // Step the fluid sim a few times a second so flow animates over ticks.
     waterAccum += dt;
     if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }

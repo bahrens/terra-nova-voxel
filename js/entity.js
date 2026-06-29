@@ -130,36 +130,46 @@ export class ItemEntity extends Entity {
   }
 }
 
-// A blocky quadruped "critter": body + head + four swinging legs, built from
-// shared geometries/materials (one Group per mob so each animates independently).
-let critterParts = null;
-function critterFactory() {
-  if (critterParts) return critterParts;
-  const legGeo = new THREE.BoxGeometry(0.16, 0.4, 0.16);
-  legGeo.translate(0, -0.2, 0); // move origin to the hip so legs swing from the top
-  critterParts = {
-    bodyGeo: new THREE.BoxGeometry(0.5, 0.5, 0.95),
-    headGeo: new THREE.BoxGeometry(0.42, 0.42, 0.42),
-    legGeo,
-    bodyMat: new THREE.MeshBasicMaterial({ color: 0xb6906a }),
-    headMat: new THREE.MeshBasicMaterial({ color: 0xc8a578 }),
-    legMat: new THREE.MeshBasicMaterial({ color: 0x6e5a3c }),
+// A blocky quadruped "critter": body, head, snout, ears, tail, and four swinging
+// legs. Geometries are shared; materials are per-mob so each can be tinted by the
+// light where it stands.
+let critterGeo = null;
+function critterGeometry() {
+  if (critterGeo) return critterGeo;
+  const leg = new THREE.BoxGeometry(0.16, 0.4, 0.16);
+  leg.translate(0, -0.2, 0); // origin at the hip so legs swing from the top
+  critterGeo = {
+    body: new THREE.BoxGeometry(0.5, 0.5, 0.95),
+    head: new THREE.BoxGeometry(0.42, 0.42, 0.42),
+    snout: new THREE.BoxGeometry(0.22, 0.18, 0.12),
+    ear: new THREE.BoxGeometry(0.1, 0.14, 0.06),
+    tail: new THREE.BoxGeometry(0.1, 0.1, 0.22),
+    leg,
   };
-  return critterParts;
+  return critterGeo;
 }
+const CRITTER_BODY = 0xb6906a, CRITTER_HEAD = 0xc8a578, CRITTER_DARK = 0x6e5a3c;
 function buildCritter() {
-  const p = critterFactory();
+  const G = critterGeometry();
+  const bodyMat = new THREE.MeshBasicMaterial({ color: CRITTER_BODY });
+  const headMat = new THREE.MeshBasicMaterial({ color: CRITTER_HEAD });
+  const darkMat = new THREE.MeshBasicMaterial({ color: CRITTER_DARK });
   const group = new THREE.Group();
-  const body = new THREE.Mesh(p.bodyGeo, p.bodyMat); body.position.set(0, 0.6, 0); group.add(body);
-  const head = new THREE.Mesh(p.headGeo, p.headMat); head.position.set(0, 0.66, -0.58); group.add(head);
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); group.add(m); return m; };
+  add(G.body, bodyMat, 0, 0.6, 0);
+  add(G.head, headMat, 0, 0.66, -0.58);
+  add(G.snout, darkMat, 0, 0.6, -0.83);
+  add(G.ear, headMat, -0.12, 0.9, -0.52);
+  add(G.ear, headMat, 0.12, 0.9, -0.52);
+  add(G.tail, bodyMat, 0, 0.62, 0.56);
   const legs = [];
   for (const [x, z] of [[-0.16, -0.32], [0.16, -0.32], [-0.16, 0.32], [0.16, 0.32]]) {
-    const leg = new THREE.Mesh(p.legGeo, p.legMat);
-    leg.position.set(x, 0.4, z);
-    group.add(leg); legs.push(leg);
+    legs.push(add(G.leg, darkMat, x, 0.4, z));
   }
-  return { group, legs };
+  return { group, legs, mats: [[bodyMat, CRITTER_BODY], [headMat, CRITTER_HEAD], [darkMat, CRITTER_DARK]] };
 }
+
+const MOB_HOP = 8.5; // clears a full 1-block step (rise ~1.3 blocks, like the player)
 
 // A passive wandering creature: idles and strolls in random headings, hops over
 // 1-block steps when blocked, and swings its legs while walking.
@@ -172,9 +182,10 @@ export class MobEntity extends Entity {
     this.moving = false;
     this.aiTimer = 0;
     this.walk = 0;
-    const { group, legs } = buildCritter();
+    const { group, legs, mats } = buildCritter();
     this.mesh = group;
     this.legs = legs;
+    this.mats = mats;
   }
 
   pickAI() {
@@ -182,7 +193,18 @@ export class MobEntity extends Entity {
     else { this.moving = true; this.heading = Math.random() * Math.PI * 2; this.aiTimer = 2 + Math.random() * 4; }
   }
 
-  update(dt) {
+  // Tint the model by the light where it stands (same 0.8-per-level curve as the
+  // world shader) so critters dim in caves and at night instead of glowing.
+  applyLight(dayFactor) {
+    const sx = Math.floor(this.position.x), sy = Math.floor(this.position.y + 0.5), sz = Math.floor(this.position.z);
+    const sky = this.world.getSkyLight(sx, sy, sz) / 15;
+    const blk = this.world.getBlockLight(sx, sy, sz) / 15;
+    const lvl = Math.max(blk, sky * dayFactor);
+    const b = Math.max(Math.pow(0.8, (1 - lvl) * 15), 0.12);
+    for (const [m, c] of this.mats) m.color.setHex(c).multiplyScalar(b);
+  }
+
+  update(dt, ctx) {
     this.aiTimer -= dt;
     if (this.aiTimer <= 0) this.pickAI();
     if (this.moving) {
@@ -194,7 +216,7 @@ export class MobEntity extends Entity {
     this.stepPhysics(dt);
     if (this.moving && this.onGround) {
       const moved = Math.hypot(this.position.x - px, this.position.z - pz);
-      if (moved < this.speed * dt * 0.4) this.velocity.y = 7; // blocked -> hop a step
+      if (moved < this.speed * dt * 0.4) this.velocity.y = MOB_HOP; // blocked -> hop the step
       this.walk += dt * 7;
     }
 
@@ -203,6 +225,12 @@ export class MobEntity extends Entity {
     const s = this.moving ? Math.sin(this.walk) * 0.5 : 0; // diagonal leg gait
     this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;
     this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
+    this.applyLight(ctx && ctx.dayFactor != null ? ctx.dayFactor : 1);
+  }
+
+  dispose(scene) {
+    super.dispose(scene);
+    for (const [m] of this.mats) m.dispose();
   }
 }
 
@@ -257,9 +285,9 @@ export class EntityManager {
     }
   }
 
-  update(dt, player) {
+  update(dt, player, dayFactor = 1) {
     this.time += dt;
-    const ctx = { player, time: this.time };
+    const ctx = { player, time: this.time, dayFactor };
     for (const e of this.list) e.update(dt, ctx);
 
     // Ambient mob spawning around the player.

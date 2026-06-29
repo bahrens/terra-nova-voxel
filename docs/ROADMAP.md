@@ -141,10 +141,12 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       wandering "critter" (`MobEntity`) — blocky quadruped with swinging-leg
       animation, idle/stroll AI, hops over 1-block steps when blocked, ambient
       spawning on loaded surfaces around the player (cap 8) and despawn when far.
-      Debug `M` spawns one ahead. *Remaining:* day/night + biome spawn rules,
-      hostile mobs + smarter AI/pathfinding, save persistence (mobs are transient),
-      mob textures/lighting (currently flat-colour, full-bright), and combat
-      (depends on survival/health).
+      Debug `M` spawns one ahead. *Polish done:* critters are now world-lit
+      (tinted by local sky/block light + day/night, same curve as the world),
+      have a snout/ears/tail, and climb 1-block steps reliably (hop height raised
+      so they no longer clip into the step). *Remaining:* day/night + biome spawn
+      rules, hostile mobs + smarter AI/pathfinding, save persistence (mobs are
+      transient), proper textures (still flat-colour), and combat (needs survival).
 - [ ] **Combat** — attacking entities, mob health, knockback. Follows entities +
       survival.
 - [ ] ⭐ **Torches** — placeable light emitters; consume the lighting system.
@@ -234,6 +236,13 @@ Not final — we'll make the call when we get there, but plan seams as if both a
       (Tier 3). Quick stopgaps if wanted sooner: make creative water placement
       create a source (level 9) and wake the sim, or filter Water/Bedrock out of
       the palette. Deferred for now.
+- [ ] **Corner blocks read as a shapeless pile** — where blocks meet to form a
+      corner or stack, the shading (smooth lighting + flat per-tile textures)
+      blends adjacent coplanar faces so there's no visible edge between individual
+      blocks — it looks like an amorphous pile rather than distinct cubes. Likely
+      fix: subtle per-block edge darkening (a thin contact/AO line at block
+      boundaries), and/or more texture variation between adjacent tiles, or a faint
+      cube outline. Rendering/readability polish.
 - [ ] **See-through flicker on block break** — for a fraction of a second after
       breaking a block you can see through the world until the chunk remesh lands.
       Cause: the edit marks the chunk dirty but the remesh runs later, behind the
