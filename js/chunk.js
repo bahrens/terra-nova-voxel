@@ -35,6 +35,18 @@ const FACES = [
 
 const AO_LEVELS = [0.5, 0.66, 0.82, 1.0];
 
+// Reusable snapshot scratch for meshing: the chunk + a 1-block border, so the
+// mesher reads blocks/light/water by array index instead of cross-chunk Map
+// lookups. Meshing is synchronous (one chunk at a time) so a shared buffer is
+// safe — every cell is rewritten each build. Sized (SIZE+2)² × height.
+const SNAP_PX = CHUNK_SIZE + 2;
+const SNAP_N = SNAP_PX * SNAP_PX * WORLD_HEIGHT;
+const _snapB = new Uint8Array(SNAP_N);   // block ids
+const _snapLs = new Uint8Array(SNAP_N);  // skylight
+const _snapLb = new Uint8Array(SNAP_N);  // block light
+const _snapW = new Uint8Array(SNAP_N);   // water level
+const snapIdx = (lx, y, lz) => (lx + 1) + SNAP_PX * (lz + 1) + SNAP_PX * SNAP_PX * y;
+
 function aoValue(side1, side2, corner) {
   if (side1 && side2) return 0;
   return 3 - (side1 + side2 + corner);
@@ -215,52 +227,71 @@ export class Chunk {
   // Build BufferGeometries for this chunk. `world` resolves neighbour blocks
   // (including across chunk borders). Returns { opaque, foliage, water }.
   buildGeometry(world) {
-    const buffers = {
-      opaque: newBuffer(),
-      foliage: newBuffer(),
-      water: newBuffer(),
-    };
-    const ox = this.cx * CHUNK_SIZE;
-    const oz = this.cz * CHUNK_SIZE;
+    const S = CHUNK_SIZE, H = WORLD_HEIGHT;
+    const ox = this.cx * S, oz = this.cz * S;
 
-    for (let y = 0; y < WORLD_HEIGHT; y++) {
-      for (let z = 0; z < CHUNK_SIZE; z++) {
-        for (let x = 0; x < CHUNK_SIZE; x++) {
-          const id = this.data[Chunk.idx(x, y, z)];
+    // --- Snapshot the chunk + 1-block border into flat scratch arrays. The
+    // interior is copied straight from this chunk's own buffers; only the border
+    // ring touches neighbour chunks via the world (a few thousand lookups, once),
+    // replacing ~38 cross-chunk Map lookups *per face* in the inner loop. ---
+    for (let y = 0; y < H; y++)
+      for (let z = 0; z < S; z++)
+        for (let x = 0; x < S; x++) {
+          const ci = Chunk.idx(x, y, z), pi = snapIdx(x, y, z);
+          _snapB[pi] = this.data[ci];
+          const l = this.light[ci]; _snapLs[pi] = (l >> 4) & 15; _snapLb[pi] = l & 15;
+          _snapW[pi] = this.water[ci];
+        }
+    const fillBorder = (lx, lz) => {
+      const wx = ox + lx, wz = oz + lz;
+      for (let y = 0; y < H; y++) {
+        const pi = snapIdx(lx, y, lz);
+        _snapB[pi] = world.getBlock(wx, y, wz);
+        _snapLs[pi] = world.getSkyLight(wx, y, wz);
+        _snapLb[pi] = world.getBlockLight(wx, y, wz);
+        _snapW[pi] = world.getWaterLevel(wx, y, wz);
+      }
+    };
+    for (let z = -1; z <= S; z++) { fillBorder(-1, z); fillBorder(S, z); }
+    for (let x = 0; x < S; x++) { fillBorder(x, -1); fillBorder(x, S); }
+
+    // A `world`-shaped view over the snapshot; the emit methods use it unchanged.
+    const sample = (arr, wx, wy, wz, def) => {
+      if (wy < 0 || wy >= H) return def;
+      const lx = wx - ox, lz = wz - oz;
+      if (lx < -1 || lx > S || lz < -1 || lz > S) return def;
+      return arr[snapIdx(lx, wy, lz)];
+    };
+    const view = {
+      atlas: world.atlas,
+      getBlock: (wx, wy, wz) => sample(_snapB, wx, wy, wz, AIR),
+      getSkyLight: (wx, wy, wz) => (wy >= H ? 15 : sample(_snapLs, wx, wy, wz, 0)),
+      getBlockLight: (wx, wy, wz) => sample(_snapLb, wx, wy, wz, 0),
+      getWaterLevel: (wx, wy, wz) => sample(_snapW, wx, wy, wz, 0),
+    };
+
+    const buffers = { opaque: newBuffer(), foliage: newBuffer(), water: newBuffer() };
+    for (let y = 0; y < H; y++) {
+      for (let z = 0; z < S; z++) {
+        for (let x = 0; x < S; x++) {
+          const id = _snapB[snapIdx(x, y, z)];
           if (id === AIR) continue;
           const def = BLOCKS[id];
           const wx = ox + x, wy = y, wz = oz + z;
 
           // Cross-shaped plants are billboards, not cubes.
-          if (def.render === "cross") {
-            this.emitCross(buffers.foliage, world, wx, wy, wz, def);
-            continue;
-          }
-
+          if (def.render === "cross") { this.emitCross(buffers.foliage, view, wx, wy, wz, def); continue; }
           // Water is meshed with level-based heights (tapered flow / surface dip).
-          if (def.liquid) {
-            this.emitWaterCell(buffers.water, world, wx, wy, wz);
-            continue;
-          }
+          if (def.liquid) { this.emitWaterCell(buffers.water, view, wx, wy, wz); continue; }
 
-          const target = def.liquid ? buffers.water
-            : def.transparent ? buffers.foliage
-            : buffers.opaque;
-
+          const target = def.transparent ? buffers.foliage : buffers.opaque;
           for (const face of FACES) {
-            const nx = wx + face.dir[0];
-            const ny = wy + face.dir[1];
-            const nz = wz + face.dir[2];
-            const neighbor = world.getBlock(nx, ny, nz);
-
-            // Culling: skip faces hidden by an opaque neighbour, and internal
-            // faces between two of the same transparent block (glass/water/leaves).
+            const neighbor = view.getBlock(wx + face.dir[0], wy + face.dir[1], wz + face.dir[2]);
+            // Cull faces hidden by an opaque neighbour, and internal faces between
+            // two of the same transparent block (glass/water/leaves).
             if (isOpaque(neighbor)) continue;
             if (neighbor === id && def.transparent) continue;
-            // Water only shows its top surface against air, not its sides under
-            // other water handled above; skip side faces buried in terrain edge.
-
-            this.emitFace(target, world, wx, wy, wz, face, def);
+            this.emitFace(target, view, wx, wy, wz, face, def);
           }
         }
       }

@@ -205,14 +205,18 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 5 — Tech foundation (enables scale; invisible to players)
 
-- [~] **Performance — needs another pass** — time-slicing gen/mesh helped, but
-      frames still **drop into the 30s** (observed 2026-06-29). *Tooling done:* a
-      first-class, toggleable **profiler overlay** (`P`, `js/profiler.js`) shows
-      smoothed per-section frame timings (player / world → gen·light·mesh / entity
-      / sky / render), draw calls, triangles, and queue depths — kept in the game
-      as a permanent dev tool. *Next:* read the overlay on a 30-fps frame to find
-      the dominant bucket, then attack it (likely candidates: full-chunk light
-      recompute on stream, mesh build w/o greedy meshing, main-thread gen).
+- [~] **Performance — in progress.** Profiler (`P`, `js/profiler.js`) added as a
+      permanent dev tool (per-section ms, draws, tris, queues, worst-frame hold).
+      **Diagnosis (2026-06-29):** two distinct regimes —
+      (1) *Flying fast → CPU-bound on meshing* (mesh ~10ms/frame, meshQ backing up
+      to ~84, 192ms spikes). **Fixed:** the mesher now snapshots the chunk + its
+      1-block border into reusable flat arrays once, then meshes from array reads
+      instead of ~38 cross-chunk `getBlock`/`getSkyLight`/`getBlockLight` Map
+      lookups per face — far fewer slow lookups + no per-mesh allocation (also
+      kills GC spikes). *Verify the mesh-ms drop in the profiler.*
+      (2) *Standing still → GPU-bound* (~800k triangles, ~700 draws). Still open:
+      **greedy meshing** (merge coplanar faces — fewer tris) is the lever there;
+      smooth-lighting limits merges to faces with matching corner light.
 - [ ] **Web-worker chunk gen/meshing** — get generation off the main thread before
       worlds get big. Matters more once entities + lighting raise per-frame cost.
       Strongest lever for the 30-fps drops above.
