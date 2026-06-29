@@ -250,6 +250,11 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "KeyK") saveGame();
   if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
   if (e.code === "Escape" && inventoryOpen) closeInventory();
+  // Debug: spawn a critter a couple blocks ahead.
+  if (e.code === "KeyM") {
+    const f = player.forwardVector(false);
+    entities.spawnMob(player.position.x + f.x * 2, player.position.y + 1, player.position.z + f.z * 2);
+  }
   // Debug: toggle the raw light view (R = block light, G = skylight).
   if (e.code === "KeyL") {
     const u = world.materials.debugUniform;

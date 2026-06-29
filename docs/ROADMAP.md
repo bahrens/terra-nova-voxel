@@ -137,8 +137,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 - [ ] **Survival vs creative mode** — the game-mode distinction and the rules that
       hang off it: health, fall damage, drowning, hunger. Also a pluggability
       concern ("game rules" are per-game config). **See open question below.**
-- [ ] ⭐ **Mobs** — spawning rules (day/night), simple AI, pathfinding, despawn,
-      save persistence. Builds on the entity system.
+- [~] ⭐ **Mobs** — builds on the entity system. *Increment 1 done:* a passive
+      wandering "critter" (`MobEntity`) — blocky quadruped with swinging-leg
+      animation, idle/stroll AI, hops over 1-block steps when blocked, ambient
+      spawning on loaded surfaces around the player (cap 8) and despawn when far.
+      Debug `M` spawns one ahead. *Remaining:* day/night + biome spawn rules,
+      hostile mobs + smarter AI/pathfinding, save persistence (mobs are transient),
+      mob textures/lighting (currently flat-colour, full-bright), and combat
+      (depends on survival/health).
 - [ ] **Combat** — attacking entities, mob health, knockback. Follows entities +
       survival.
 - [ ] ⭐ **Torches** — placeable light emitters; consume the lighting system.
