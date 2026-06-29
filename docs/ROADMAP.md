@@ -205,6 +205,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 4 — Presentation & shell
 
+- [ ] **Mobile / touch support** — the game is desktop-only today (pointer-lock +
+      keyboard/mouse). Add a touch input layer: virtual move joystick, drag-to-look,
+      tap/hold to break + place, and on-screen buttons (jump/fly/inventory/mode),
+      plus a touch-friendly responsive UI (the inventory/crafting/hotbar). Ben wants
+      to **test on mobile** too, so this matters for the dev loop, not just players.
+      Touch the input abstraction now-ish so it doesn't calcify around pointer-lock.
+
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.
 - [ ] **Multiple worlds + world-select UI** — today it's one hardcoded
