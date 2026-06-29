@@ -1,0 +1,41 @@
+name: Deploy to GitHub Pages
+
+# Auto-deploys `master` on every push, and lets you manually deploy ANY branch
+# for testing (Actions tab -> this workflow -> Run workflow -> pick a branch).
+# The site is static (no build step), so we just upload the repo and publish it.
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or ref to deploy (e.g. feat/mobile)"
+        required: false
+        default: master
+
+# One Pages site per repo: latest deploy wins; cancel an in-flight one.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref_name }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
