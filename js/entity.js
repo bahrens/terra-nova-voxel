@@ -5,6 +5,7 @@
 // adds/removes their meshes from the scene.
 import * as THREE from "three";
 import { isSolid, BLOCKS } from "./blocks.js";
+import { WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
 
 const GRAVITY = 28;
 
@@ -129,6 +130,82 @@ export class ItemEntity extends Entity {
   }
 }
 
+// A blocky quadruped "critter": body + head + four swinging legs, built from
+// shared geometries/materials (one Group per mob so each animates independently).
+let critterParts = null;
+function critterFactory() {
+  if (critterParts) return critterParts;
+  const legGeo = new THREE.BoxGeometry(0.16, 0.4, 0.16);
+  legGeo.translate(0, -0.2, 0); // move origin to the hip so legs swing from the top
+  critterParts = {
+    bodyGeo: new THREE.BoxGeometry(0.5, 0.5, 0.95),
+    headGeo: new THREE.BoxGeometry(0.42, 0.42, 0.42),
+    legGeo,
+    bodyMat: new THREE.MeshBasicMaterial({ color: 0xb6906a }),
+    headMat: new THREE.MeshBasicMaterial({ color: 0xc8a578 }),
+    legMat: new THREE.MeshBasicMaterial({ color: 0x6e5a3c }),
+  };
+  return critterParts;
+}
+function buildCritter() {
+  const p = critterFactory();
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(p.bodyGeo, p.bodyMat); body.position.set(0, 0.6, 0); group.add(body);
+  const head = new THREE.Mesh(p.headGeo, p.headMat); head.position.set(0, 0.66, -0.58); group.add(head);
+  const legs = [];
+  for (const [x, z] of [[-0.16, -0.32], [0.16, -0.32], [-0.16, 0.32], [0.16, 0.32]]) {
+    const leg = new THREE.Mesh(p.legGeo, p.legMat);
+    leg.position.set(x, 0.4, z);
+    group.add(leg); legs.push(leg);
+  }
+  return { group, legs };
+}
+
+// A passive wandering creature: idles and strolls in random headings, hops over
+// 1-block steps when blocked, and swings its legs while walking.
+export class MobEntity extends Entity {
+  constructor(world, x, y, z) {
+    super(world, x, y, z, 0.3, 0.9);
+    this.isMob = true;
+    this.speed = 1.6;
+    this.heading = Math.random() * Math.PI * 2;
+    this.moving = false;
+    this.aiTimer = 0;
+    this.walk = 0;
+    const { group, legs } = buildCritter();
+    this.mesh = group;
+    this.legs = legs;
+  }
+
+  pickAI() {
+    if (Math.random() < 0.35) { this.moving = false; this.aiTimer = 1 + Math.random() * 2.5; }
+    else { this.moving = true; this.heading = Math.random() * Math.PI * 2; this.aiTimer = 2 + Math.random() * 4; }
+  }
+
+  update(dt) {
+    this.aiTimer -= dt;
+    if (this.aiTimer <= 0) this.pickAI();
+    if (this.moving) {
+      this.velocity.x = -Math.sin(this.heading) * this.speed; // forward = -z when heading 0
+      this.velocity.z = -Math.cos(this.heading) * this.speed;
+    } else { this.velocity.x = 0; this.velocity.z = 0; }
+
+    const px = this.position.x, pz = this.position.z;
+    this.stepPhysics(dt);
+    if (this.moving && this.onGround) {
+      const moved = Math.hypot(this.position.x - px, this.position.z - pz);
+      if (moved < this.speed * dt * 0.4) this.velocity.y = 7; // blocked -> hop a step
+      this.walk += dt * 7;
+    }
+
+    this.mesh.position.set(this.position.x, this.position.y, this.position.z);
+    this.mesh.rotation.y = this.heading;
+    const s = this.moving ? Math.sin(this.walk) * 0.5 : 0; // diagonal leg gait
+    this.legs[0].rotation.x = s; this.legs[3].rotation.x = s;
+    this.legs[1].rotation.x = -s; this.legs[2].rotation.x = -s;
+  }
+}
+
 export class EntityManager {
   constructor(scene, world, atlas) {
     this.scene = scene;
@@ -136,6 +213,8 @@ export class EntityManager {
     this.atlas = atlas;
     this.list = [];
     this.time = 0;
+    this.spawnTimer = 3;
+    this.maxMobs = 8;
     // Unlit cutout material so plant/leaf tiles keep their transparency.
     this.itemMaterial = new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.3 });
   }
@@ -148,12 +227,53 @@ export class EntityManager {
     return e;
   }
 
+  spawnMob(x, y, z) {
+    const e = new MobEntity(this.world, x, y, z);
+    this.scene.add(e.mesh);
+    this.list.push(e);
+    return e;
+  }
+
+  // Topmost solid block with 2 air above (standing room) over sea level, or null
+  // if the column isn't loaded / has no surface.
+  findSurface(wx, wz) {
+    for (let y = WORLD_HEIGHT - 2; y > WATER_LEVEL; y--) {
+      if (isSolid(this.world.getBlock(wx, y, wz)) &&
+          !isSolid(this.world.getBlock(wx, y + 1, wz)) &&
+          !isSolid(this.world.getBlock(wx, y + 2, wz))) return y + 1;
+    }
+    return null;
+  }
+
+  trySpawnMob(player) {
+    if (this.list.reduce((n, e) => n + (e.isMob ? 1 : 0), 0) >= this.maxMobs) return;
+    for (let t = 0; t < 6; t++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 14 + Math.random() * 18;
+      const wx = Math.floor(player.position.x + Math.cos(ang) * dist);
+      const wz = Math.floor(player.position.z + Math.sin(ang) * dist);
+      const y = this.findSurface(wx, wz);
+      if (y != null) { this.spawnMob(wx + 0.5, y, wz + 0.5); return; }
+    }
+  }
+
   update(dt, player) {
     this.time += dt;
     const ctx = { player, time: this.time };
     for (const e of this.list) e.update(dt, ctx);
+
+    // Ambient mob spawning around the player.
+    this.spawnTimer -= dt;
+    if (this.spawnTimer <= 0) { this.spawnTimer = 5; this.trySpawnMob(player); }
+
+    // Despawn far-away mobs, then remove the dead.
     for (let i = this.list.length - 1; i >= 0; i--) {
-      if (this.list[i].dead) { this.list[i].dispose(this.scene); this.list.splice(i, 1); }
+      const e = this.list[i];
+      if (e.isMob && !e.dead) {
+        const dx = e.position.x - player.position.x, dz = e.position.z - player.position.z;
+        if (dx * dx + dz * dz > 70 * 70) e.dead = true;
+      }
+      if (e.dead) { e.dispose(this.scene); this.list.splice(i, 1); }
     }
   }
 }
