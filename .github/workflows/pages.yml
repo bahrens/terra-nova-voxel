@@ -1,0 +1,36 @@
+name: Deploy to GitHub Pages
+
+# Deploys whatever branch triggers the run to the (single) Pages site, so the
+# latest push wins. `master` is the stable public build; pushing a feature branch
+# publishes it for on-device testing (e.g. mobile). The site is static, so we
+# just upload the repo and publish it.
+on:
+  push:
+    branches: [master, "feat/**"]
+  workflow_dispatch: # also runnable manually from any branch that has this file
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4 # checks out the triggering branch by default
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true # auto-enable Pages (build type = GitHub Actions)
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+      - id: deploy
+        uses: actions/deploy-pages@v4
