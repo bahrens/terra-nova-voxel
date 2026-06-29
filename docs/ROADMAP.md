@@ -109,8 +109,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       separate from the block registry (tools, food, materials, "block items").
       The single most important missing abstraction: inventory, crafting, drops,
       and mining all depend on it. Today *everything is a block*.
-- [ ] **Inventory** — stacks/slots model, hotbar as a view into it, picking up
-      dropped items. Prerequisite for survival, crafting, and mining-with-drops.
+- [~] **Inventory** — *increment 1 done:* a creative block palette (press `E`)
+      with a customisable, persisted 9-slot hotbar — pick a slot, click a block to
+      assign it, right-click to clear; the layout saves with the world. The hotbar
+      is now a mutable array (was a hardcoded list) and any block is reachable, so
+      the "9-slot cap / Sandstone dropped" limitation is resolved. *Remaining:*
+      item stacks + counts (lands with survival), drag-and-drop slot management,
+      and picking up dropped items (needs the entity/drops work).
 
 ### Tier 2 — Core gameplay loop (sandbox → game)
 
@@ -198,15 +203,21 @@ Not final — we'll make the call when we get there, but plan seams as if both a
 - [ ] **Block-destroy effects** — spawn particle/effect bursts when a block breaks
       (and likely a place effect + sound). Pairs naturally with the entity/particle
       work and audio. A reusable particle system is the real deliverable here.
-- [ ] **>9 placeable blocks need a real home** — the hotbar maps to digit keys
-      `1`–`9`, so it caps at 9 (kept there; torch was swapped in for Sandstone).
-      Sandstone is now unplaceable until there's a full inventory with the hotbar
-      as a 9-slot view (preferred — see Tier 1 Inventory), or hotbar paging/
-      categories. That's the real fix; the 9-slot swap is just the stopgap.
+- [x] **>9 placeable blocks need a real home** *(fixed)* — the inventory palette
+      (`E`) now lets any block be assigned to the 9-slot hotbar, so the digit-key
+      cap no longer limits which blocks are reachable. Sandstone (and everything
+      else) is placeable again via the inventory. See Tier 1 Inventory.
 - [ ] **Proper torch shape + wall mounting** — the torch is a flat cross billboard
       placeholder. Want a real 3D torch post, and the ability to place it on the
       *side* of a block (angled outward), like Minecraft. Depends on the non-cube
       block-shape work (Tier 3) and a placement rule for which faces accept it.
+- [ ] **Placeable water is janky** — placing Water from the creative palette
+      calls `setBlock`, which makes a WATER block at level 0 (not a source), so it
+      renders as a thin non-flowing sliver instead of spreading. Real fix ties to
+      placeable water **sources / buckets** and the water-physics/improvements work
+      (Tier 3). Quick stopgaps if wanted sooner: make creative water placement
+      create a source (level 9) and wake the sim, or filter Water/Bedrock out of
+      the palette. Deferred for now.
 - [ ] **See-through flicker on block break** — for a fraction of a second after
       breaking a block you can see through the world until the chunk remesh lands.
       Cause: the edit marks the chunk dirty but the remesh runs later, behind the

@@ -35,6 +35,7 @@ Then open **http://localhost:5173/** and click **Play**.
 | Break block | Left click |
 | Place block | Right click |
 | Select block | `1`–`9` or scroll wheel |
+| Inventory (assign hotbar) | `E` |
 | Toggle fly | `F` |
 | Fly up / down | `Space` / `Shift` |
 | Fast fly (while flying) | double-tap `W` |

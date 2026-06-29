@@ -47,12 +47,24 @@
         <li><b>Space</b> — jump &nbsp;/&nbsp; <b>Shift</b> — sprint</li>
         <li><b>Left Click</b> — break block</li>
         <li><b>Right Click</b> — place block</li>
-        <li><b>1–9</b> or <b>Scroll</b> — select block</li>
+        <li><b>1–9</b> or <b>Scroll</b> — select block &nbsp;/&nbsp; <b>E</b> — inventory</li>
         <li><b>F</b> — fly &nbsp;(<b>Space</b> up / <b>Shift</b> down / dbl-<b>W</b> fast) &nbsp;/&nbsp; <b>Esc</b> — menu</li>
         <li><b>T</b> (hold) — fast-forward time &nbsp;/&nbsp; <b>K</b> — save</li>
       </ul>
       <p class="saveinfo">Your world auto-saves to this browser.</p>
       <button id="newWorldBtn" class="secondary">New World</button>
+    </div>
+  </div>
+
+  <!-- Inventory: creative block palette + editable hotbar -->
+  <div id="inventory">
+    <div class="inv-panel">
+      <h2>Inventory</h2>
+      <p class="inv-hint">Pick a hotbar slot, then click a block to assign it.
+        Right-click a slot to clear. <b>E</b> or <b>Esc</b> to close.</p>
+      <div id="invGrid" class="inv-grid"></div>
+      <div class="inv-sub">Hotbar</div>
+      <div id="invHotbar" class="inv-hotbar"></div>
     </div>
   </div>
 
