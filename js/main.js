@@ -8,6 +8,7 @@ import { CHUNK_SIZE } from "./chunk.js";
 import { BLOCKS, BLOCK } from "./blocks.js";
 import { ITEMS, blockForItem, dropForBlock, DEFAULT_HOTBAR } from "./items.js";
 import { EntityManager } from "./entity.js";
+import { Profiler } from "./profiler.js";
 
 const SKY = 0x9ad0f0;
 const RENDER_DISTANCE = 10;
@@ -257,6 +258,9 @@ document.addEventListener("keydown", (e) => {
     player.creative = !player.creative;
     toast(player.creative ? "Creative: instant break" : "Survival: hold to mine");
   }
+  // Toggle the profiler overlay; V copies a snapshot to the clipboard.
+  if (e.code === "KeyP") { prof.enabled = !prof.enabled; toast(prof.enabled ? "Profiler: ON" : "Profiler: OFF"); }
+  if (e.code === "KeyV") copyProfilerSnapshot();
   // Debug: spawn a critter a couple blocks ahead.
   if (e.code === "KeyM") {
     const f = player.forwardVector(false);
@@ -284,25 +288,38 @@ function toast(msg) {
 // ---- Main loop ----
 const clock = new THREE.Clock();
 let fpsAcc = 0, fpsFrames = 0, fps = 0;
+let peakRealMs = 0; // worst real frame time since last copy (captures stutters)
+const prof = new Profiler();
 
 function start() {
   let waterAccum = 0;
   const loop = () => {
     const dt = clock.getDelta();
-    if (player.enabled) player.update(dt);
-    world.update(player.position);
-    if (player.enabled) entities.update(dt, player, sky.brightness);
+    // Real frame interval reflects true fps incl. GPU/present (clamped to ignore
+    // load/tab-switch hitches); peak-held so a brief stutter survives until copied.
+    const realMs = Math.min(dt * 1000, 250);
+    prof.record("real", realMs);
+    peakRealMs = Math.max(peakRealMs, realMs);
+    const fStart = performance.now();
+    if (player.enabled) prof.time("player", () => player.update(dt));
+    prof.time("world", () => world.update(player.position));
+    prof.record("gen", world.timings.gen);
+    prof.record("light", world.timings.light);
+    prof.record("mesh", world.timings.mesh);
+    if (player.enabled) prof.time("entity", () => entities.update(dt, player, sky.brightness));
     // Step the fluid sim a few times a second so flow animates over ticks.
     waterAccum += dt;
     if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }
     // Hold T to fast-forward time (handy for seeing the cycle / moon phases).
-    sky.update(dt * (player.keys.has("KeyT") ? 80 : 1), camera);
+    prof.time("sky", () => sky.update(dt * (player.keys.has("KeyT") ? 80 : 1), camera));
     applySky();
-    renderer.render(scene, camera);
+    prof.time("render", () => renderer.render(scene, camera));
+    prof.record("frame", performance.now() - fStart);
 
     fpsAcc += dt; fpsFrames++;
     if (fpsAcc >= 0.5) { fps = Math.round(fpsFrames / fpsAcc); fpsAcc = 0; fpsFrames = 0; }
     updateDebug();
+    updateProfiler();
 
     requestAnimationFrame(loop);
   };
@@ -346,6 +363,51 @@ function updateDebug() {
     `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}   ents ${entities.list.length}\n` +
     `fps  ${fps}   ${player.flying ? (player.flyFast ? "FLY·fast" : "FLY") : (player.onGround ? "ground" : "air")}\n` +
     `time ${clock24}   look ${looking}`;
+}
+
+// Toggleable profiler overlay: per-section frame timings + draw stats. A first-
+// class dev tool — leave it in for whenever performance needs a look.
+const profilerEl = document.getElementById("profiler");
+function updateProfiler() {
+  if (!prof.enabled) { if (profilerEl.classList.contains("active")) profilerEl.classList.remove("active"); return; }
+  profilerEl.classList.add("active");
+  const info = renderer.info.render;
+  const ms = (l) => prof.get(l).toFixed(2).padStart(6);
+  const minFps = peakRealMs > 0 ? Math.round(1000 / peakRealMs) : fps;
+  profilerEl.textContent =
+    `PROFILER (P·V copy) fps ${fps}\n` +
+    `real  ${ms("real")} ms  peak ${peakRealMs.toFixed(0)} (min ${minFps}fps)\n` +
+    `cpu   ${ms("frame")} ms\n` +
+    ` player${ms("player")}\n` +
+    ` world ${ms("world")}\n` +
+    `   gen ${ms("gen")}\n` +
+    `   lit ${ms("light")}\n` +
+    `  mesh ${ms("mesh")}\n` +
+    ` entity${ms("entity")}\n` +
+    ` sky   ${ms("sky")}\n` +
+    ` render${ms("render")}\n` +
+    `draws ${info.calls}   tris ${(info.triangles / 1000).toFixed(0)}k\n` +
+    `chunks ${world.chunks.size}  ents ${entities.list.length}\n` +
+    `meshQ ${world.meshQueue.length}  litQ ${world.lightQueue.size}`;
+}
+
+// Copy a compact, paste-ready profiler snapshot to the clipboard (V), so the
+// numbers from a slow frame are one keypress + paste away.
+function copyProfilerSnapshot() {
+  const ms = (l) => prof.get(l).toFixed(2);
+  const info = renderer.info.render;
+  const minFps = peakRealMs > 0 ? Math.round(1000 / peakRealMs) : fps;
+  const text =
+    `Terra Nova profiler @ ${fps} fps | real ${ms("real")}ms, worst ${peakRealMs.toFixed(0)}ms (min ${minFps}fps) | cpu-frame ${ms("frame")}ms\n` +
+    `player ${ms("player")} | world ${ms("world")} (gen ${ms("gen")}, light ${ms("light")}, mesh ${ms("mesh")}) ` +
+    `| entity ${ms("entity")} | sky ${ms("sky")} | render ${ms("render")}\n` +
+    `draws ${info.calls} | tris ${info.triangles} | chunks ${world.chunks.size} | ` +
+    `ents ${entities.list.length} | meshQ ${world.meshQueue.length} | litQ ${world.lightQueue.size}`;
+  const ok = () => toast("Profiler copied — paste it to share");
+  const fallback = () => { console.log(text); toast("Profiler logged to console (clipboard blocked)"); };
+  try { navigator.clipboard.writeText(text).then(ok, fallback); }
+  catch { fallback(); }
+  peakRealMs = 0; // reset the worst-frame hold for the next measurement window
 }
 
 prime();

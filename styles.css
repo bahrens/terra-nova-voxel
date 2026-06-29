@@ -170,6 +170,21 @@ html, body {
 }
 #debug.active { opacity: .85; }
 
+/* Profiler overlay (top-right, toggle with P) */
+#profiler {
+  position: fixed;
+  top: 8px; right: 8px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
+  white-space: pre;
+  opacity: 0;
+  z-index: 6;
+}
+#profiler.active { opacity: .9; }
+
 /* Menu */
 #menu {
   position: fixed;

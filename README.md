@@ -40,6 +40,9 @@ Then open **http://localhost:5173/** and click **Play**.
 | Fly up / down | `Space` / `Shift` |
 | Fast fly (while flying) | double-tap `W` |
 | Fast-forward time | hold `T` |
+| Mine | hold Left click |
+| Creative / survival toggle | `G` |
+| Profiler overlay / copy snapshot | `P` / `V` |
 | Save | `K` |
 | Pause / menu | `Esc` |
 
