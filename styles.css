@@ -99,6 +99,15 @@ html, body {
   transition: opacity .2s;
 }
 .slot.selected .label { opacity: 1; }
+/* survival stack count (bottom-right) and empty (depleted) state */
+.slot .count {
+  position: absolute;
+  bottom: 1px; right: 3px;
+  font-size: 12px; font-weight: 700;
+  text-shadow: 1px 1px 0 #000, -1px 0 0 #000;
+}
+.slot.empty canvas { opacity: .28; }
+.slot.empty .count { opacity: .6; }
 
 /* Inventory */
 #inventory {

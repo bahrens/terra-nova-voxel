@@ -45,7 +45,8 @@ export class Player {
     scene.add(this.crack);
 
     this.onSelect = null; // callback(deltaOrIndex) hook set by main
-    this.onBreak = null;  // callback(x, y, z, blockId) when a block is broken
+    this.onBreak = null;  // callback(x, y, z, blockId, harvest) when a block is broken
+    this.onPlace = null;  // callback() after a block is placed (survival consumes)
 
     this.bindInput();
   }
@@ -318,6 +319,7 @@ export class Player {
     if (tgt !== 0 && tgt !== BLOCK.WATER) return; // can build into air or displace water
     if (this.overlapsPlayer(px, py, pz)) return;
     this.world.setBlock(px, py, pz, this.placeId);
+    if (this.onPlace) this.onPlace(); // survival: consume one from the inventory
   }
 
   overlapsPlayer(bx, by, bz) {

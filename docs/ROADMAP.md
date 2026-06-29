@@ -129,9 +129,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       with a customisable, persisted 9-slot hotbar — pick a slot, click a block to
       assign it, right-click to clear; the layout saves with the world. The hotbar
       is now a mutable array (was a hardcoded list) and any block is reachable, so
-      the "9-slot cap / Sandstone dropped" limitation is resolved. *Remaining:*
-      item stacks + counts (lands with survival), drag-and-drop slot management,
-      and picking up dropped items (needs the entity/drops work).
+      the "9-slot cap / Sandstone dropped" limitation is resolved.
+      *Increment 2 done — survival unification:* the hotbar reads the counted
+      inventory in **survival** — slots show stack counts, placing **consumes** one
+      (depleted slots grey out and can't place), tools/blocks only work if you have
+      them, and collecting/crafting refills the held slot live. The infinite
+      **creative palette is hidden in survival** (`G` toggles modes). *Remaining:*
+      a true multi-slot inventory (multiple stacks per item, drag-and-drop, stack
+      splitting) rather than one count-per-item store, and stack-size caps.
 
 ### Tier 2 — Core gameplay loop (sandbox → game)
 
@@ -155,9 +160,8 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       consumes inputs and produces the output. Starter recipes: planks, sticks,
       torches, and the wood/stone/iron tools — so the survival loop *mine → drops →
       collect → craft tools* now closes. Collected/crafted items can be clicked
-      onto the hotbar to use them. *Remaining:* survival **placing/wielding consumes
-      counts** (today still creative-infinite), grid-shaped recipes, smelting/
-      furnace, and unifying the hotbar as a view of the inventory.
+      onto the hotbar to use them. (Survival placing now **consumes counts** — see
+      the Inventory item.) *Remaining:* grid-shaped recipes, and smelting/furnace.
 - [ ] **Survival vs creative mode** — the game-mode distinction and the rules that
       hang off it: health, fall damage, drowning, hunger. Also a pluggability
       concern ("game rules" are per-game config). **See open question below.**

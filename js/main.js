@@ -52,6 +52,10 @@ const entities = new EntityManager(scene, world, world.atlas);
 player.onBreak = (x, y, z, id, harvest) => {
   if (harvest) entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, dropForBlock(id));
 };
+// Counted survival inventory (item id -> count), declared early so the hotbar
+// can read counts. Fed by pickups + crafting; consumed by survival placing.
+const inventory = new Map();
+const invAdd = (id, n) => inventory.set(id, Math.max(0, (inventory.get(id) || 0) + n));
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 if (saved?.sky?.t != null) sky.t = saved.sky.t;
 
@@ -86,6 +90,13 @@ function renderSlots(el, clickable) {
       const label = document.createElement("span");
       label.className = "label"; label.textContent = def.name; slot.appendChild(label);
     }
+    // Survival: show the stack count and grey out depleted slots.
+    if (def && !player.creative) {
+      const count = inventory.get(id) || 0;
+      if (count === 0) slot.classList.add("empty");
+      const badge = document.createElement("span");
+      badge.className = "count"; badge.textContent = count; slot.appendChild(badge);
+    }
     if (clickable) {
       slot.addEventListener("click", () => setSelected(i, true));
       slot.addEventListener("contextmenu", (e) => {
@@ -102,12 +113,13 @@ function applySelection() {
   [hotbarEl, invHotbarEl].forEach((el) =>
     [...el.children].forEach((c, i) => c.classList.toggle("selected", i === selected)));
 }
-// Sync the player's held state to the selected slot: what it places (the block
-// the item maps to, 0 = non-placeable) and what tool it mines with.
+// Sync the player's held state to the selected slot. Creative places/wields
+// freely; survival only lets you use an item you actually have a count of.
 function applyHeld() {
   const item = hotbar[selected];
-  player.placeId = blockForItem(item) ?? 0;
-  player.toolInfo = toolStats(item);
+  const have = player.creative || (inventory.get(item) || 0) > 0;
+  player.toolInfo = have ? toolStats(item) : null;
+  player.placeId = have ? (blockForItem(item) ?? 0) : 0;
 }
 function setSelected(arg, isIndex) {
   const len = hotbar.length;
@@ -138,14 +150,20 @@ buildHotbars();
 setSelected(0, true);
 
 // ---- Counted inventory + crafting (survival) ----
-// A counted store (item id -> count) fed by picking up drops. Crafting consumes
-// from it and produces into it. Placing/wielding still pulls from the creative
-// palette for now; this is the survival currency + the crafting loop.
-const inventory = new Map();
+// `inventory`/`invAdd` are declared up top. Crafting consumes/produces in the
+// store; in survival, placing also consumes (see applyHeld / player.onPlace).
 const invItemsEl = document.getElementById("invItems");
 const invItemsEmptyEl = document.getElementById("invItemsEmpty");
 const invCraftingEl = document.getElementById("invCrafting");
-function invAdd(id, n) { inventory.set(id, Math.max(0, (inventory.get(id) || 0) + n)); }
+const invPaletteEl = document.getElementById("invPalette");
+
+// Reflect the current game mode: hide the infinite creative palette in survival,
+// and refresh held state + hotbar counts.
+function refreshMode() {
+  invPaletteEl.style.display = player.creative ? "" : "none";
+  applyHeld();
+  buildHotbars();
+}
 
 function buildInventoryItems() {
   invItemsEl.innerHTML = "";
@@ -186,14 +204,29 @@ function doCraft(recipe) {
   for (const id in recipe.in) invAdd(id, -recipe.in[id]);
   invAdd(recipe.out.id, recipe.out.n);
   buildInventoryItems(); buildCrafting();
+  applyHeld(); buildHotbars(); // counts changed -> refresh hotbar / placeability
   toast(`Crafted ${ITEMS[recipe.out.id].name}`);
 }
 
-// Picked-up drops go into the counted inventory.
+// Picked-up drops go into the counted inventory and refresh the hotbar (so a
+// depleted held stack re-enables once you collect more).
 entities.onCollect = (id) => {
   invAdd(id, 1);
+  applyHeld(); buildHotbars();
   if (inventoryOpen) { buildInventoryItems(); buildCrafting(); }
 };
+
+// Survival: placing a block consumes one of the held item; tools aren't consumed.
+player.onPlace = () => {
+  if (player.creative) return;
+  const item = hotbar[selected];
+  if (!item || !blockForItem(item)) return;
+  invAdd(item, -1);
+  applyHeld(); buildHotbars();
+  if (inventoryOpen) buildInventoryItems();
+};
+
+refreshMode(); // set initial palette visibility (default survival) + hotbar
 
 // ---- Pointer lock / menu ----
 const menu = document.getElementById("menu");
@@ -215,6 +248,7 @@ let inventoryOpen = false;
 function openInventory() {
   if (!started || inventoryOpen) return;
   inventoryOpen = true;
+  invPaletteEl.style.display = player.creative ? "" : "none";
   buildInventoryItems(); buildCrafting(); // reflect drops collected while closed
   document.exitPointerLock();
 }
@@ -326,10 +360,11 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "KeyK") saveGame();
   if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
   if (e.code === "Escape" && inventoryOpen) closeInventory();
-  // Toggle instant-break (creative) vs hold-to-mine (survival).
+  // Toggle creative (instant break, infinite blocks) vs survival (mine, consume).
   if (e.code === "KeyG") {
     player.creative = !player.creative;
-    toast(player.creative ? "Creative: instant break" : "Survival: hold to mine");
+    refreshMode();
+    toast(player.creative ? "Creative mode" : "Survival mode");
   }
   // Toggle the profiler overlay; V copies a snapshot to the clipboard.
   if (e.code === "KeyP") { prof.enabled = !prof.enabled; toast(prof.enabled ? "Profiler: ON" : "Profiler: OFF"); }
