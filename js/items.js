@@ -27,6 +27,7 @@ for (const [name, blockId] of Object.entries(BLOCK)) {
 def("coal", { name: "Coal", tile: "coal_item" });
 def("iron", { name: "Iron", tile: "iron_item" });
 def("gold", { name: "Gold", tile: "gold_item" });
+def("stick", { name: "Stick", tile: "stick_item" });
 
 // Tools: pickaxe / axe / shovel in wood, stone, iron tiers. Matching tool +
 // sufficient tier mines its block category faster and harvests gated blocks.

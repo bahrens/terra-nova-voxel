@@ -108,7 +108,7 @@ export class ItemEntity extends Entity {
       this.position.y += (ty - this.position.y) * k;
       this.position.z += (tz - this.position.z) * k;
       const dx = tx - this.position.x, dy = ty - this.position.y, dz = tz - this.position.z;
-      if (dx * dx + dy * dy + dz * dz < 0.16) this.dead = true; // collected
+      if (dx * dx + dy * dy + dz * dz < 0.16) { this.dead = true; this.collected = true; } // picked up
     } else {
       this.stepPhysics(dt);
       if (player && this.age > 0.6) {
@@ -242,6 +242,7 @@ export class EntityManager {
     this.time = 0;
     this.spawnTimer = 3;
     this.maxMobs = 8;
+    this.onCollect = null; // callback(itemId) when a dropped item is picked up
     // Unlit cutout material so plant/leaf tiles keep their transparency.
     this.itemMaterial = new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.3 });
   }
@@ -300,7 +301,10 @@ export class EntityManager {
         const dx = e.position.x - player.position.x, dz = e.position.z - player.position.z;
         if (dx * dx + dz * dz > 70 * 70) e.dead = true;
       }
-      if (e.dead) { e.dispose(this.scene); this.list.splice(i, 1); }
+      if (e.dead) {
+        if (e.collected && this.onCollect) this.onCollect(e.itemId);
+        e.dispose(this.scene); this.list.splice(i, 1);
+      }
     }
   }
 }

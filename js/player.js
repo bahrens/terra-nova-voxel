@@ -118,7 +118,7 @@ export class Player {
     }, { passive: true });
     document.addEventListener("mousedown", (e) => {
       if (!this.enabled) return;
-      if (e.button === 0) { this.leftDown = true; if (this.creative) this.breakBlock(); }
+      if (e.button === 0) { this.leftDown = true; if (this.creative) this.breakBlock(false); }
       else if (e.button === 2) this.placeBlock();
     });
     document.addEventListener("mouseup", (e) => {

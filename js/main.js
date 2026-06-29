@@ -7,6 +7,7 @@ import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
 import { BLOCKS, BLOCK } from "./blocks.js";
 import { ITEMS, blockForItem, dropForBlock, toolStats, DEFAULT_HOTBAR } from "./items.js";
+import { RECIPES, canCraft } from "./recipes.js";
 import { EntityManager } from "./entity.js";
 import { Profiler } from "./profiler.js";
 
@@ -136,6 +137,64 @@ buildPalette();
 buildHotbars();
 setSelected(0, true);
 
+// ---- Counted inventory + crafting (survival) ----
+// A counted store (item id -> count) fed by picking up drops. Crafting consumes
+// from it and produces into it. Placing/wielding still pulls from the creative
+// palette for now; this is the survival currency + the crafting loop.
+const inventory = new Map();
+const invItemsEl = document.getElementById("invItems");
+const invItemsEmptyEl = document.getElementById("invItemsEmpty");
+const invCraftingEl = document.getElementById("invCrafting");
+function invAdd(id, n) { inventory.set(id, Math.max(0, (inventory.get(id) || 0) + n)); }
+
+function buildInventoryItems() {
+  invItemsEl.innerHTML = "";
+  const entries = [...inventory.entries()].filter(([, n]) => n > 0);
+  invItemsEmptyEl.style.display = entries.length ? "none" : "";
+  for (const [id, n] of entries) {
+    const def = ITEMS[id]; if (!def) continue;
+    const cell = document.createElement("div");
+    cell.className = "inv-item"; cell.title = def.name;
+    cell.appendChild(world.atlas.iconCanvas(def.tile, 34));
+    const cnt = document.createElement("span"); cnt.className = "inv-count"; cnt.textContent = n; cell.appendChild(cnt);
+    cell.addEventListener("click", () => { hotbar[selected] = id; applyHeld(); buildHotbars(); });
+    invItemsEl.appendChild(cell);
+  }
+}
+
+function buildCrafting() {
+  invCraftingEl.innerHTML = "";
+  for (const recipe of RECIPES) {
+    const out = ITEMS[recipe.out.id];
+    const craftable = canCraft(recipe, inventory);
+    const row = document.createElement("div");
+    row.className = "inv-recipe" + (craftable ? " craftable" : "");
+    row.appendChild(world.atlas.iconCanvas(out.tile, 30));
+    const o = document.createElement("span");
+    o.className = "r-out"; o.textContent = out.name + (recipe.out.n > 1 ? " ×" + recipe.out.n : "");
+    row.appendChild(o);
+    const ins = Object.keys(recipe.in).map((id) => `${ITEMS[id]?.name ?? id} ×${recipe.in[id]}`).join(", ");
+    const inEl = document.createElement("span"); inEl.className = "r-in"; inEl.textContent = "needs " + ins;
+    row.appendChild(inEl);
+    if (craftable) row.addEventListener("click", () => doCraft(recipe));
+    invCraftingEl.appendChild(row);
+  }
+}
+
+function doCraft(recipe) {
+  if (!canCraft(recipe, inventory)) return;
+  for (const id in recipe.in) invAdd(id, -recipe.in[id]);
+  invAdd(recipe.out.id, recipe.out.n);
+  buildInventoryItems(); buildCrafting();
+  toast(`Crafted ${ITEMS[recipe.out.id].name}`);
+}
+
+// Picked-up drops go into the counted inventory.
+entities.onCollect = (id) => {
+  invAdd(id, 1);
+  if (inventoryOpen) { buildInventoryItems(); buildCrafting(); }
+};
+
 // ---- Pointer lock / menu ----
 const menu = document.getElementById("menu");
 const playBtn = document.getElementById("playBtn");
@@ -153,7 +212,12 @@ if (newWorldBtn) newWorldBtn.addEventListener("click", () => {
 // the pause menu.
 const inventoryEl = document.getElementById("inventory");
 let inventoryOpen = false;
-function openInventory() { if (!started || inventoryOpen) return; inventoryOpen = true; document.exitPointerLock(); }
+function openInventory() {
+  if (!started || inventoryOpen) return;
+  inventoryOpen = true;
+  buildInventoryItems(); buildCrafting(); // reflect drops collected while closed
+  document.exitPointerLock();
+}
 function closeInventory() { if (!inventoryOpen) return; inventoryOpen = false; inventoryEl.classList.remove("active"); canvas.requestPointerLock(); }
 
 document.addEventListener("pointerlockchange", () => {
