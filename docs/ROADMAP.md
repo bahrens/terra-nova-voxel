@@ -92,7 +92,11 @@ lost short list. Items the original list explicitly named are marked ⭐.)
     light *per vertex* over the 2×2 corner neighbourhood (reusing the AO samples)
     instead of one flat value per face, so the GPU interpolates a gradient — fixes
     the "blocky" per-face look (we were effectively "Minecraft Smooth Lighting:
-    OFF").
+    OFF"). The averaging is Minecraft-accurate: solid/hidden corner cells count
+    as light 0 over a fixed ÷4, so the **AO darkening lives in the light average
+    itself** (no separate AO multiply). An earlier version excluded solids and
+    applied a separate AO term, which made concave corners ~2× too bright (inside
+    edges "lit up"); fixed.
   - **Light curve (done):** the shader applies a multiplicative falloff (each
     level ≈0.8× the previous) per channel in level-space, dimming skylight by
     day/night *after* the curve so day (1.0) and night (0.26) surface brightness

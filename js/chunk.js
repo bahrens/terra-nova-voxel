@@ -315,16 +315,21 @@ export class Chunk {
       const cnr = isOpaque(world.getBlock(ccx, ccy, ccz));
       ao.push(aoValue(s1 ? 1 : 0, s2 ? 1 : 0, cnr ? 1 : 0));
 
-      // Smooth lighting: average light over the non-occluded cells of the 2×2
-      // corner (the face cell always counts; a diagonal hidden behind two solid
-      // edges is excluded, like AO). Interpolating these across the quad removes
-      // the flat per-face "blocky" look.
-      let sSum = fSky, bSum = fBlock, n = 1;
-      if (!s1) { sSum += world.getSkyLight(e1x, e1y, e1z); bSum += world.getBlockLight(e1x, e1y, e1z); n++; }
-      if (!s2) { sSum += world.getSkyLight(e2x, e2y, e2z); bSum += world.getBlockLight(e2x, e2y, e2z); n++; }
-      if (!cnr && !(s1 && s2)) { sSum += world.getSkyLight(ccx, ccy, ccz); bSum += world.getBlockLight(ccx, ccy, ccz); n++; }
-      skyV.push(sSum / n / 15);
-      blockV.push(bSum / n / 15);
+      // Smooth lighting, Minecraft-style: average the face cell with its three
+      // corner neighbours over a FIXED divisor of 4, counting solid/hidden cells
+      // as light 0. That zero-contribution is what darkens concave corners — i.e.
+      // the ambient-occlusion effect lives in the light average itself (so there's
+      // no separate AO multiply below). Convex edges and flat faces keep full
+      // light, so inside corners no longer flare bright.
+      const occluded = cnr || (s1 && s2);
+      const eS1 = s1 ? 0 : world.getSkyLight(e1x, e1y, e1z);
+      const eS2 = s2 ? 0 : world.getSkyLight(e2x, e2y, e2z);
+      const cS = occluded ? 0 : world.getSkyLight(ccx, ccy, ccz);
+      skyV.push((fSky + eS1 + eS2 + cS) / 4 / 15);
+      const eB1 = s1 ? 0 : world.getBlockLight(e1x, e1y, e1z);
+      const eB2 = s2 ? 0 : world.getBlockLight(e2x, e2y, e2z);
+      const cB = occluded ? 0 : world.getBlockLight(ccx, ccy, ccz);
+      blockV.push((fBlock + eB1 + eB2 + cB) / 4 / 15);
     }
 
     const baseIndex = buf.positions.length / 3;
@@ -332,8 +337,9 @@ export class Chunk {
       buf.positions.push(positions[i][0], positions[i][1], positions[i][2]);
       buf.normals.push(dx, dy, dz);
       buf.uvs.push(uvCoords[i][0], uvCoords[i][1]);
-      // r = AO × face shading (static), g = skylight, b = block light (smoothed).
-      buf.colors.push(light * AO_LEVELS[ao[i]], skyV[i], blockV[i]);
+      // r = directional face shading only (AO now lives in the smoothed light),
+      // g = skylight, b = block light (both smoothed per vertex).
+      buf.colors.push(light, skyV[i], blockV[i]);
     }
 
     // Flip quad triangulation to keep AO gradients smooth.
