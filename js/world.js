@@ -116,19 +116,28 @@ export class World {
     // (no re-meshing) and block light stays constant through the night. A small
     // ambient floor keeps unlit areas from being pure black before torches exist.
     const skyUniform = { value: 1 };
+    const debugUniform = { value: 0 }; // 1 = raw light view (toggle with L)
     const patchLight = (mat) => {
       mat.onBeforeCompile = (shader) => {
         shader.uniforms.uSky = skyUniform;
-        shader.fragmentShader = "uniform float uSky;\n" + shader.fragmentShader.replace(
+        shader.uniforms.uDebugLight = debugUniform;
+        shader.fragmentShader = "uniform float uSky;\nuniform float uDebugLight;\n" +
+          shader.fragmentShader.replace(
           "#include <color_fragment>",
           `#ifdef USE_COLOR
-             // Light curve: each level is ~0.8x the previous for a natural falloff
-             // (vs a flat linear ramp). Applied per channel in level-space; sky is
-             // dimmed by day/night AFTER the curve so night brightness is unchanged.
-             // r = AO x face shading. 0.06 = ambient floor (no pure-black).
-             float skyC = pow(0.8, (1.0 - vColor.g) * 15.0) * uSky;
-             float blockC = pow(0.8, (1.0 - vColor.b) * 15.0);
-             diffuseColor.rgb *= max(vColor.r * max(skyC, blockC), 0.06);
+             if (uDebugLight > 0.5) {
+               // Debug view: R = block light, G = skylight (raw 0-1), ignoring
+               // texture/AO/day-night so the light data is directly visible.
+               diffuseColor.rgb = vec3(vColor.b, vColor.g, 0.0);
+             } else {
+               // Light curve: each level is ~0.8x the previous for a natural falloff
+               // (vs a flat linear ramp). Applied per channel in level-space; sky is
+               // dimmed by day/night AFTER the curve so night brightness is unchanged.
+               // r = AO x face shading. 0.06 = ambient floor (no pure-black).
+               float skyC = pow(0.8, (1.0 - vColor.g) * 15.0) * uSky;
+               float blockC = pow(0.8, (1.0 - vColor.b) * 15.0);
+               diffuseColor.rgb *= max(vColor.r * max(skyC, blockC), 0.06);
+             }
            #endif`
         );
       };
@@ -147,7 +156,7 @@ export class World {
       map, vertexColors: true, transparent: true, opacity: 0.78,
       depthWrite: true, side: THREE.DoubleSide,
     });
-    return { opaque, foliage, water, skyUniform };
+    return { opaque, foliage, water, skyUniform, debugUniform };
   }
 
   // ---- Block access (world coordinates) ----
@@ -200,7 +209,9 @@ export class World {
       H: WORLD_HEIGHT,
       opaqueAt: (ax, ay, az) => { const c = localChunk(ax, az); return c ? isOpaque(this.getBlock(ax, ay, az)) : true; },
       emissionAt: (ax, ay, az) => BLOCKS[this.getBlock(ax, ay, az)]?.light || 0,
-      getSky: (ax, ay, az) => this.getSkyLight(ax, ay, az),
+      // Unloaded chunks count as dark (0), not phantom open-sky (15) — otherwise an
+      // edit near the loaded-world boundary could inject spurious light.
+      getSky: (ax, ay, az) => { const c = localChunk(ax, az); return c ? c.getSky(ax - c.cx * CHUNK_SIZE, ay, az - c.cz * CHUNK_SIZE) : 0; },
       getBlockL: (ax, ay, az) => this.getBlockLight(ax, ay, az),
       setSky: (ax, ay, az, v) => {
         const c = localChunk(ax, az); if (!c) return false;

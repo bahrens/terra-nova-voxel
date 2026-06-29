@@ -181,7 +181,14 @@ setInterval(() => { if (started) saveGame(); }, 15000);
 window.addEventListener("pagehide", () => saveGame());
 window.addEventListener("beforeunload", () => saveGame());
 document.addEventListener("keydown", (e) => {
-  if (started && e.code === "KeyK") saveGame();
+  if (!started) return;
+  if (e.code === "KeyK") saveGame();
+  // Debug: toggle the raw light view (R = block light, G = skylight).
+  if (e.code === "KeyL") {
+    const u = world.materials.debugUniform;
+    u.value = u.value > 0.5 ? 0 : 1;
+    toast(u.value > 0.5 ? "Light view: ON (R=block, G=sky)" : "Light view: OFF");
+  }
 });
 
 // Transient on-screen message.
