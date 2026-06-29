@@ -135,9 +135,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 2 — Core gameplay loop (sandbox → game)
 
-- [ ] **Mining mechanics** — block hardness, break time, breaking animation/
-      progress, and **blocks dropping items**. Today break is instant + yields
-      nothing. Pairs with **tools** (pickaxe/axe/shovel tiers).
+- [~] **Mining mechanics** — *increment 1 done:* per-block **hardness**
+      (`blockHardness`, Infinity = unbreakable), **hold-to-break** with progress
+      accumulated by hardness, a procedural **crack overlay** that fades in, and
+      block→item **drops** on completion (via the items work). A `G` toggle flips
+      between survival (hold to mine) and creative (instant break) until the full
+      mode system lands. *Remaining:* **tools** (pickaxe/axe/shovel tiers that
+      divide mining time + gate drops), multi-stage crack texture, and a break
+      sound (needs audio).
 - [ ] **Crafting** — a **recipe registry** (crafting grid + smelting/furnace).
       Textbook pluggability seam — a data-driven table each downstream game redefines.
 - [ ] **Survival vs creative mode** — the game-mode distinction and the rules that
@@ -200,8 +205,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 5 — Tech foundation (enables scale; invisible to players)
 
+- [ ] **Performance — needs another pass** — time-slicing gen/mesh helped, but
+      frames still **drop into the 30s** (observed 2026-06-29). Likely culprits to
+      profile: per-edit relight/remesh cost, full-chunk light recompute on stream,
+      mesh build time (no greedy meshing), and main-thread gen. Profile first
+      (where is the time going?), then attack the biggest items below.
 - [ ] **Web-worker chunk gen/meshing** — get generation off the main thread before
       worlds get big. Matters more once entities + lighting raise per-frame cost.
+      Strongest lever for the 30-fps drops above.
 - [ ] **Greedy meshing** — fewer triangles per chunk.
 - [ ] **Chunk persistence beyond edits** — full chunk storage if procedural-only
       saves prove limiting.

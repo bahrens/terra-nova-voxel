@@ -128,6 +128,24 @@ export function needsSupport(id) {
   return b ? !!b.needsSupport : false;
 }
 
+// Mining time in seconds at base (no-tool) speed. Infinity = unbreakable.
+// Tools will later divide this; creative mode ignores it (instant break).
+const HARDNESS = {
+  [BLOCK.SNOW]: 0.2, [BLOCK.LEAVES]: 0.2, [BLOCK.GLASS]: 0.3, [BLOCK.CACTUS]: 0.4,
+  [BLOCK.DIRT]: 0.6, [BLOCK.SAND]: 0.6, [BLOCK.RED_SAND]: 0.6, [BLOCK.GRASS]: 0.7,
+  [BLOCK.GRAVEL]: 0.8, [BLOCK.ICE]: 0.6,
+  [BLOCK.LOG]: 2.0, [BLOCK.PLANK]: 2.0, [BLOCK.SANDSTONE]: 1.8,
+  [BLOCK.STONE]: 3.5, [BLOCK.COBBLE]: 3.5,
+  [BLOCK.COAL_ORE]: 4.0, [BLOCK.IRON_ORE]: 4.5, [BLOCK.GOLD_ORE]: 4.5,
+  [BLOCK.BEDROCK]: Infinity,
+};
+export function blockHardness(id) {
+  if (id in HARDNESS) return HARDNESS[id];
+  const b = BLOCKS[id];
+  if (b && b.render === "cross") return 0; // plants/torches pop instantly
+  return 1.0;
+}
+
 // The blocks offered in the hotbar, in order.
 // Kept at 9 so it maps cleanly to digit keys 1-9. (A proper >9-block solution —
 // a full inventory with the hotbar as a 9-slot view — is a roadmap item.)

@@ -252,6 +252,11 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "KeyK") saveGame();
   if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
   if (e.code === "Escape" && inventoryOpen) closeInventory();
+  // Toggle instant-break (creative) vs hold-to-mine (survival).
+  if (e.code === "KeyG") {
+    player.creative = !player.creative;
+    toast(player.creative ? "Creative: instant break" : "Survival: hold to mine");
+  }
   // Debug: spawn a critter a couple blocks ahead.
   if (e.code === "KeyM") {
     const f = player.forwardVector(false);
