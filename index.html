@@ -35,6 +35,20 @@
   <!-- Profiler overlay (toggle with P) -->
   <div id="profiler"></div>
 
+  <!-- Touch controls (touch devices, while playing) -->
+  <div id="touch">
+    <div id="lookpad"></div>
+    <div id="joystick"><div id="joyKnob"></div></div>
+    <div id="touchBtns">
+      <button id="btnInv" class="tbtn" title="Inventory">▦</button>
+      <button id="btnFly" class="tbtn" title="Fly">✈</button>
+      <button id="btnBreak" class="tbtn" title="Break">⛏</button>
+      <button id="btnJump" class="tbtn" title="Jump">⤒</button>
+      <button id="btnPlace" class="tbtn" title="Place">＋</button>
+    </div>
+    <button id="btnPause" class="tbtn tpause" title="Menu">⏸</button>
+  </div>
+
   <!-- Transient message (e.g. "Saved") -->
   <div id="toast"></div>
 
@@ -79,6 +93,8 @@
 
       <div class="inv-sub">Hotbar</div>
       <div id="invHotbar" class="inv-hotbar"></div>
+
+      <button id="invClose" class="secondary">Close</button>
     </div>
   </div>
 

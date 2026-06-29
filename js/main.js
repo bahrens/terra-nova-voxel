@@ -10,6 +10,7 @@ import { ITEMS, blockForItem, dropForBlock, toolStats, DEFAULT_HOTBAR } from "./
 import { RECIPES, canCraft } from "./recipes.js";
 import { EntityManager } from "./entity.js";
 import { Profiler } from "./profiler.js";
+import { setupTouch } from "./touch.js";
 
 const SKY = 0x9ad0f0;
 const RENDER_DISTANCE = 10;
@@ -97,8 +98,10 @@ function renderSlots(el, clickable) {
       const badge = document.createElement("span");
       badge.className = "count"; badge.textContent = count; slot.appendChild(badge);
     }
+    // Tapping/clicking a slot selects it (works on touch where the HUD hotbar
+    // is interactive; inert on desktop where the HUD ignores pointer events).
+    slot.addEventListener("click", () => setSelected(i, true));
     if (clickable) {
-      slot.addEventListener("click", () => setSelected(i, true));
       slot.addEventListener("contextmenu", (e) => {
         e.preventDefault(); hotbar[i] = null;
         if (i === selected) applyHeld();
@@ -228,48 +231,75 @@ player.onPlace = () => {
 
 refreshMode(); // set initial palette visibility (default survival) + hotbar
 
-// ---- Pointer lock / menu ----
+// ---- Play state / menu / inventory (works for pointer-lock and touch) ----
 const menu = document.getElementById("menu");
 const playBtn = document.getElementById("playBtn");
 const crosshair = document.getElementById("crosshair");
 const hud = document.getElementById("hud");
 const debugEl = document.getElementById("debug");
+const inventoryEl = document.getElementById("inventory");
+const touchEl = document.getElementById("touch");
 
-playBtn.addEventListener("click", () => canvas.requestPointerLock());
+const isTouch = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+let inventoryOpen = false;
+let touchPlaying = false; // touch: in the game (vs the menu)
+
+// In the world (not a menu/inventory)? Desktop uses pointer lock; touch a flag.
+function playing() {
+  if (inventoryOpen) return false;
+  return isTouch ? touchPlaying : document.pointerLockElement === canvas;
+}
+// Single source of truth for what's visible and whether input is live.
+function refreshUI() {
+  const p = playing();
+  player.enabled = p;
+  crosshair.classList.toggle("active", p);
+  hud.classList.toggle("active", p);
+  debugEl.classList.toggle("active", p);
+  touchEl.classList.toggle("active", p && isTouch);
+  inventoryEl.classList.toggle("active", inventoryOpen);
+  menu.classList.toggle("hidden", p || inventoryOpen);
+}
+
+playBtn.addEventListener("click", () => {
+  if (isTouch) { touchPlaying = true; refreshUI(); }
+  else canvas.requestPointerLock();
+});
 const newWorldBtn = document.getElementById("newWorldBtn");
 if (newWorldBtn) newWorldBtn.addEventListener("click", () => {
   if (confirm("Start a new world? This deletes your saved world.")) newWorld();
 });
-// Inventory overlay: opening exits pointer lock (so the cursor works); closing
-// re-locks. pointerlockchange decides whether an unlock means "inventory" or
-// the pause menu.
-const inventoryEl = document.getElementById("inventory");
-let inventoryOpen = false;
+
 function openInventory() {
   if (!started || inventoryOpen) return;
   inventoryOpen = true;
   invPaletteEl.style.display = player.creative ? "" : "none";
   buildInventoryItems(); buildCrafting(); // reflect drops collected while closed
-  document.exitPointerLock();
+  if (isTouch) refreshUI(); else document.exitPointerLock();
 }
-function closeInventory() { if (!inventoryOpen) return; inventoryOpen = false; inventoryEl.classList.remove("active"); canvas.requestPointerLock(); }
+function closeInventory() {
+  if (!inventoryOpen) return;
+  inventoryOpen = false;
+  if (isTouch) refreshUI(); else canvas.requestPointerLock();
+}
+const invCloseBtn = document.getElementById("invClose");
+if (invCloseBtn) invCloseBtn.addEventListener("click", closeInventory);
 
+// Desktop: pointer-lock changes drive the UI.
 document.addEventListener("pointerlockchange", () => {
-  const locked = document.pointerLockElement === canvas;
-  player.enabled = locked;
-  crosshair.classList.toggle("active", locked);
-  hud.classList.toggle("active", locked);
-  debugEl.classList.toggle("active", locked);
-  if (locked) {
-    menu.classList.add("hidden");
-    inventoryEl.classList.remove("active");
-    inventoryOpen = false;
-  } else {
-    // Unlocked: show the inventory if that's why we unlocked, else the pause menu.
-    inventoryEl.classList.toggle("active", inventoryOpen);
-    menu.classList.toggle("hidden", inventoryOpen);
-  }
+  if (isTouch) return;
+  if (document.pointerLockElement === canvas) inventoryOpen = false;
+  refreshUI();
 });
+
+// Touch: virtual joystick / look pad / action buttons.
+if (isTouch) {
+  document.body.classList.add("is-touch");
+  setupTouch(player, {
+    onInventory: () => (inventoryOpen ? closeInventory() : openInventory()),
+    onPause: () => { touchPlaying = false; refreshUI(); },
+  });
+}
 
 window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;

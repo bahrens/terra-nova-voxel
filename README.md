@@ -46,6 +46,10 @@ Then open **http://localhost:5173/** and click **Play**.
 | Save | `K` |
 | Pause / menu | `Esc` |
 
+**On touch devices** (phones/tablets), the game shows on-screen controls instead:
+a left **joystick** to move, **drag anywhere** to look, **tap the hotbar** to select,
+and buttons for **break** (hold), **place**, **jump**, **fly**, **inventory**, and **menu**.
+
 ## Saving
 
 Your world is saved to the browser's `localStorage` — it auto-saves every 15s

@@ -32,6 +32,7 @@ export class Player {
     this.enabled = false;
 
     this.keys = new Set();
+    this.moveX = 0; this.moveZ = 0; // analog move (touch joystick): strafe / forward, -1..1
     this.selected = 0; // hotbar index, set by main
 
     this.creative = false; // instant break (no mining) when true
@@ -107,11 +108,7 @@ export class Player {
     document.addEventListener("keyup", (e) => this.keys.delete(e.code));
     document.addEventListener("mousemove", (e) => {
       if (!this.enabled) return;
-      const s = 0.0022;
-      this.yaw -= e.movementX * s;
-      this.pitch -= e.movementY * s;
-      const lim = Math.PI / 2 - 0.01;
-      this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
+      this.lookDelta(e.movementX, e.movementY);
     });
     window.addEventListener("wheel", (e) => {
       if (!this.enabled || !this.onSelect) return;
@@ -126,6 +123,15 @@ export class Player {
       if (e.button === 0) { this.leftDown = false; this.mining = null; }
     });
     document.addEventListener("contextmenu", (e) => e.preventDefault());
+  }
+
+  // Apply a look delta (mouse movement or a touch drag) to yaw/pitch.
+  lookDelta(dx, dy) {
+    const s = 0.0022;
+    this.yaw -= dx * s;
+    this.pitch -= dy * s;
+    const lim = Math.PI / 2 - 0.01;
+    this.pitch = Math.max(-lim, Math.min(lim, this.pitch));
   }
 
   forwardVector(includePitch = false) {
@@ -143,12 +149,12 @@ export class Player {
     // Right-hand strafe vector: cross(forward, up).
     const right = new THREE.Vector3(-forward.z, 0, forward.x);
 
-    let wish = new THREE.Vector3();
-    if (this.keys.has("KeyW")) wish.add(forward);
-    if (this.keys.has("KeyS")) wish.sub(forward);
-    if (this.keys.has("KeyD")) wish.add(right);
-    if (this.keys.has("KeyA")) wish.sub(right);
-    if (wish.lengthSq() > 0) wish.normalize();
+    // Combine keyboard (digital ±1) with analog touch joystick input.
+    const wf = (this.keys.has("KeyW") ? 1 : 0) - (this.keys.has("KeyS") ? 1 : 0) + this.moveZ;
+    const ws = (this.keys.has("KeyD") ? 1 : 0) - (this.keys.has("KeyA") ? 1 : 0) + this.moveX;
+    const wish = new THREE.Vector3();
+    wish.addScaledVector(forward, wf).addScaledVector(right, ws);
+    if (wish.lengthSq() > 1) wish.normalize();
 
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
 

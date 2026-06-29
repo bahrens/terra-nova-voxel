@@ -209,12 +209,16 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 4 — Presentation & shell
 
-- [ ] **Mobile / touch support** — the game is desktop-only today (pointer-lock +
-      keyboard/mouse). Add a touch input layer: virtual move joystick, drag-to-look,
-      tap/hold to break + place, and on-screen buttons (jump/fly/inventory/mode),
-      plus a touch-friendly responsive UI (the inventory/crafting/hotbar). Ben wants
-      to **test on mobile** too, so this matters for the dev loop, not just players.
-      Touch the input abstraction now-ish so it doesn't calcify around pointer-lock.
+- [~] **Mobile / touch support** — *increment 1 done (`js/touch.js`):* a touch
+      input layer wired to the same player inputs as keyboard/mouse — a left analog
+      **joystick** (move), a full-screen **look pad** (drag), and buttons for break
+      (hold), place, jump, fly, inventory, menu. Player gained analog move + a
+      `lookDelta` method; the play/menu/inventory state was unified (`refreshUI`/
+      `playing()`) so it no longer hard-depends on pointer lock — touch uses a flag,
+      desktop uses the lock. Touch detected via `(pointer: coarse)`; hotbar is
+      tappable to select. **Needs real-device testing** (can't verify on desktop).
+      *Remaining:* responsive/scaled UI for small screens, mode (`G`) + dev toggles
+      on touch, control-layout/sensitivity tuning, and inventory drag on touch.
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.
