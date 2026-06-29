@@ -1,7 +1,7 @@
 // Player: first-person controls, AABB voxel collision, gravity/flight, and
 // DDA voxel raycasting for breaking and placing blocks.
 import * as THREE from "three";
-import { isSolid, blockHardness } from "./blocks.js";
+import { isSolid, blockHardness, blockTool, blockMinTier } from "./blocks.js";
 import { BLOCK } from "./blocks.js";
 
 const HALF_WIDTH = 0.3;
@@ -37,6 +37,7 @@ export class Player {
     this.creative = false; // instant break (no mining) when true
     this.leftDown = false;
     this.mining = null;    // { x, y, z, progress } while breaking by hand
+    this.toolInfo = null;  // { type, tier, speed } of the held tool, set by main
 
     this.highlight = this.makeHighlight();
     scene.add(this.highlight);
@@ -199,9 +200,11 @@ export class Player {
     this.updateMining(dt);
   }
 
-  // Hold-to-break mining: accumulate progress on the targeted block per its
-  // hardness; break + drop when full. Resets if the target changes or the button
-  // is released. Creative mode (instant break) is handled on mousedown instead.
+  // Hold-to-break mining: progress accumulates by the block's hardness, divided
+  // by the held tool's speed when it matches the block's tool category. Harvest
+  // (a drop) requires a matching tool of sufficient tier for gated blocks; else
+  // the block still breaks but yields nothing. Creative (instant break) is on
+  // mousedown instead. Resets if the target changes or the button is released.
   updateMining(dt) {
     if (!this.leftDown || this.creative) { this.mining = null; this.crack.visible = false; return; }
     const hit = this.raycast();
@@ -209,17 +212,23 @@ export class Player {
     const hardness = blockHardness(hit.block);
     if (!isFinite(hardness)) { this.mining = null; this.crack.visible = false; return; } // unbreakable
 
+    const tool = this.toolInfo;
+    const matched = tool && tool.type === blockTool(hit.block);
+    const speed = matched ? tool.speed : 1;
+
     if (!this.mining || this.mining.x !== hit.x || this.mining.y !== hit.y || this.mining.z !== hit.z) {
       this.mining = { x: hit.x, y: hit.y, z: hit.z, progress: 0 };
     }
-    this.mining.progress += hardness > 0 ? dt / hardness : 1;
+    this.mining.progress += hardness > 0 ? (dt * speed) / hardness : 1;
 
     this.crack.visible = true;
     this.crack.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
     this.crack.material.opacity = 0.15 + 0.55 * Math.min(1, this.mining.progress);
 
     if (this.mining.progress >= 1) {
-      this.breakBlock();
+      const minTier = blockMinTier(hit.block);
+      const harvest = minTier === 0 || (matched && tool.tier >= minTier);
+      this.breakBlock(harvest);
       this.mining = null;
       this.crack.visible = false;
     }
@@ -291,12 +300,12 @@ export class Player {
     this.highlight.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
   }
 
-  breakBlock() {
+  breakBlock(harvest = true) {
     const hit = this.raycast();
     if (!hit) return;
     if (hit.block === BLOCK.BEDROCK) return;
     this.world.setBlock(hit.x, hit.y, hit.z, 0);
-    if (this.onBreak) this.onBreak(hit.x, hit.y, hit.z, hit.block);
+    if (this.onBreak) this.onBreak(hit.x, hit.y, hit.z, hit.block, harvest);
   }
 
   placeBlock() {

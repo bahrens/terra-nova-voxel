@@ -146,6 +146,25 @@ export function blockHardness(id) {
   return 1.0;
 }
 
+// The tool type that mines a block fastest (and, for gated blocks, is required
+// to harvest it). null = no preferred tool (hands are fine).
+const BLOCK_TOOL = {
+  [BLOCK.STONE]: "pickaxe", [BLOCK.COBBLE]: "pickaxe", [BLOCK.SANDSTONE]: "pickaxe",
+  [BLOCK.COAL_ORE]: "pickaxe", [BLOCK.IRON_ORE]: "pickaxe", [BLOCK.GOLD_ORE]: "pickaxe", [BLOCK.ICE]: "pickaxe",
+  [BLOCK.LOG]: "axe", [BLOCK.PLANK]: "axe",
+  [BLOCK.DIRT]: "shovel", [BLOCK.GRASS]: "shovel", [BLOCK.SAND]: "shovel",
+  [BLOCK.RED_SAND]: "shovel", [BLOCK.GRAVEL]: "shovel", [BLOCK.SNOW]: "shovel",
+};
+// Minimum matching-tool tier (wood 1, stone 2, iron 3) needed to get a drop.
+// 0 = harvestable by hand. Mining a gated block with too weak/wrong a tool still
+// breaks it but yields nothing.
+const BLOCK_MIN_TIER = {
+  [BLOCK.STONE]: 1, [BLOCK.COBBLE]: 1, [BLOCK.SANDSTONE]: 1, [BLOCK.COAL_ORE]: 1,
+  [BLOCK.IRON_ORE]: 2, [BLOCK.GOLD_ORE]: 3,
+};
+export function blockTool(id) { return BLOCK_TOOL[id] ?? null; }
+export function blockMinTier(id) { return BLOCK_MIN_TIER[id] ?? 0; }
+
 // The blocks offered in the hotbar, in order.
 // Kept at 9 so it maps cleanly to digit keys 1-9. (A proper >9-block solution —
 // a full inventory with the hotbar as a 9-slot view — is a roadmap item.)

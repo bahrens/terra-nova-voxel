@@ -28,6 +28,28 @@ def("coal", { name: "Coal", tile: "coal_item" });
 def("iron", { name: "Iron", tile: "iron_item" });
 def("gold", { name: "Gold", tile: "gold_item" });
 
+// Tools: pickaxe / axe / shovel in wood, stone, iron tiers. Matching tool +
+// sufficient tier mines its block category faster and harvests gated blocks.
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+const TOOL_TYPES = ["pickaxe", "axe", "shovel"];
+const TOOL_TIERS = [
+  { key: "wood", tier: 1, speed: 2 },
+  { key: "stone", tier: 2, speed: 4 },
+  { key: "iron", tier: 3, speed: 6 },
+];
+for (const type of TOOL_TYPES) {
+  for (const t of TOOL_TIERS) {
+    const id = `${t.key}_${type}`;
+    def(id, { name: `${cap(t.key)} ${cap(type)}`, tile: id, tool: type, tier: t.tier, speed: t.speed, maxStack: 1 });
+  }
+}
+
+// Mining stats of a held item, or null if it isn't a tool.
+export function toolStats(itemId) {
+  const i = ITEMS[itemId];
+  return i && i.tool ? { type: i.tool, tier: i.tier, speed: i.speed } : null;
+}
+
 // What a broken block yields (item id), or null for nothing. Defaults to the
 // block's own block item; overrides are where items diverge from blocks.
 const DROPS = {

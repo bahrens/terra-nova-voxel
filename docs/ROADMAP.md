@@ -140,9 +140,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       accumulated by hardness, a procedural **crack overlay** that fades in, and
       block→item **drops** on completion (via the items work). A `G` toggle flips
       between survival (hold to mine) and creative (instant break) until the full
-      mode system lands. *Remaining:* **tools** (pickaxe/axe/shovel tiers that
-      divide mining time + gate drops), multi-stage crack texture, and a break
-      sound (needs audio).
+      mode system lands. *Increment 2 done — tools:* pickaxe/axe/shovel in wood/
+      stone/iron tiers (`items.js`); each block has a preferred tool category +
+      min-harvest-tier (`blocks.js`). A matching tool mines its category 2–6× faster
+      (by tier), and gated blocks (stone→cobble, ores) only **drop** with a matching
+      tool of sufficient tier — wrong/weak tool still breaks them but yields nothing
+      (Minecraft-style). Held tool tracked via the hotbar selection. *Remaining:*
+      tools should be **earnable** (needs crafting), tool durability, multi-stage
+      crack texture, and a break sound (needs audio).
 - [ ] **Crafting** — a **recipe registry** (crafting grid + smelting/furnace).
       Textbook pluggability seam — a data-driven table each downstream game redefines.
 - [ ] **Survival vs creative mode** — the game-mode distinction and the rules that
