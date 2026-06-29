@@ -255,6 +255,11 @@ Not final — we'll make the call when we get there, but plan seams as if both a
       faces still blend into one surface, so a stack/pile of blocks lacks per-block
       definition. Future: subtle per-block contact/edge darkening, more inter-tile
       texture variation, or a faint cube outline.
+- [ ] **Visual polish pass (future)** — a dedicated shading/look-and-feel sweep
+      once gameplay systems are further along. Candidates: the per-block edge
+      definition above, AO depth/curve tuning, mob + dropped-item textures (both
+      flat-colour/single-tile now), water rendering, and overall colour/contrast.
+      Deferred by choice — current look is "good for now" (Ben, 2026-06-29).
 - [ ] **See-through flicker on block break** — for a fraction of a second after
       breaking a block you can see through the world until the chunk remesh lands.
       Cause: the edit marks the chunk dirty but the remesh runs later, behind the
