@@ -1,19 +1,14 @@
 name: Deploy to GitHub Pages
 
-# Auto-deploys `master` on every push, and lets you manually deploy ANY branch
-# for testing (Actions tab -> this workflow -> Run workflow -> pick a branch).
-# The site is static (no build step), so we just upload the repo and publish it.
+# Deploys whatever branch triggers the run to the (single) Pages site, so the
+# latest push wins. `master` is the stable public build; pushing a feature branch
+# publishes it for on-device testing (e.g. mobile). The site is static, so we
+# just upload the repo and publish it.
 on:
   push:
-    branches: [master]
-  workflow_dispatch:
-    inputs:
-      ref:
-        description: "Branch or ref to deploy (e.g. feat/mobile)"
-        required: false
-        default: master
+    branches: [master, "feat/**"]
+  workflow_dispatch: # also runnable manually from any branch that has this file
 
-# One Pages site per repo: latest deploy wins; cancel an in-flight one.
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -30,9 +25,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref_name }}
+      - uses: actions/checkout@v4 # checks out the triggering branch by default
       - uses: actions/configure-pages@v5
         with:
           enablement: true # auto-enable Pages (build type = GitHub Actions)
