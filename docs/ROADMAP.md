@@ -147,6 +147,10 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       so they no longer clip into the step). *Remaining:* day/night + biome spawn
       rules, hostile mobs + smarter AI/pathfinding, save persistence (mobs are
       transient), proper textures (still flat-colour), and combat (needs survival).
+      *Known cosmetic (won't-fix for now):* the model (long body + protruding
+      snout/head) clips through block edges when passing them, because the hitbox
+      is a smaller axis-aligned box — same as Minecraft; the critter never enters
+      solid blocks. A tighter hitbox would cause more snagging for little gain.
 - [ ] **Combat** — attacking entities, mob health, knockback. Follows entities +
       survival.
 - [ ] ⭐ **Torches** — placeable light emitters; consume the lighting system.
@@ -236,13 +240,17 @@ Not final — we'll make the call when we get there, but plan seams as if both a
       (Tier 3). Quick stopgaps if wanted sooner: make creative water placement
       create a source (level 9) and wake the sim, or filter Water/Bedrock out of
       the palette. Deferred for now.
-- [ ] **Corner blocks read as a shapeless pile** — where blocks meet to form a
-      corner or stack, the shading (smooth lighting + flat per-tile textures)
-      blends adjacent coplanar faces so there's no visible edge between individual
-      blocks — it looks like an amorphous pile rather than distinct cubes. Likely
-      fix: subtle per-block edge darkening (a thin contact/AO line at block
-      boundaries), and/or more texture variation between adjacent tiles, or a faint
-      cube outline. Rendering/readability polish.
+- [~] **Concave-corner shading** — two parts:
+      (a) *Triangular corner shadow (fixed):* at an L/concave corner the AO contact
+      shadow showed up as a hard-edged triangle on one block's face, worst at night.
+      Cause: the mesher's quad-triangulation flip was inverted, so a lone dark
+      corner got trapped in a single triangle instead of spreading. Fixed by
+      correcting the diagonal choice (standard 0fps AO-anisotropy rule) in
+      `chunk.emitFace`.
+      (b) *No visible edge between adjacent blocks (open):* coplanar same-texture
+      faces still blend into one surface, so a stack/pile of blocks lacks per-block
+      definition. Future: subtle per-block contact/edge darkening, more inter-tile
+      texture variation, or a faint cube outline.
 - [ ] **See-through flicker on block break** — for a fraction of a second after
       breaking a block you can see through the world until the chunk remesh lands.
       Cause: the edit marks the chunk dirty but the remesh runs later, behind the

@@ -342,13 +342,18 @@ export class Chunk {
       buf.colors.push(light, skyV[i], blockV[i]);
     }
 
-    // Flip quad triangulation to keep AO gradients smooth.
+    // Split the quad along the diagonal that runs THROUGH the darker pair of
+    // corners, so a lone dark (concave-corner) vertex spreads into a smooth
+    // shadow instead of being trapped in one triangle as a hard-edged wedge.
+    // This is the standard AO-anisotropy rule (0fps): flip to the 1–3 diagonal
+    // when the 0–2 diagonal is the brighter one. (The branches were previously
+    // inverted, which is what produced the triangular corner shadows.)
     if (ao[0] + ao[2] > ao[1] + ao[3]) {
-      buf.indices.push(baseIndex, baseIndex + 1, baseIndex + 2,
-                       baseIndex, baseIndex + 2, baseIndex + 3);
-    } else {
       buf.indices.push(baseIndex + 1, baseIndex + 2, baseIndex + 3,
                        baseIndex + 1, baseIndex + 3, baseIndex);
+    } else {
+      buf.indices.push(baseIndex, baseIndex + 1, baseIndex + 2,
+                       baseIndex, baseIndex + 2, baseIndex + 3);
     }
   }
 
