@@ -6,7 +6,7 @@ import { Player } from "./player.js";
 import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
 import { BLOCKS, BLOCK } from "./blocks.js";
-import { ITEMS, blockForItem, dropForBlock, DEFAULT_HOTBAR } from "./items.js";
+import { ITEMS, blockForItem, dropForBlock, toolStats, DEFAULT_HOTBAR } from "./items.js";
 import { EntityManager } from "./entity.js";
 import { Profiler } from "./profiler.js";
 
@@ -46,8 +46,11 @@ const world = new World(scene, { seed, renderDistance: RENDER_DISTANCE });
 if (saved?.edits) world.loadEditsData(saved.edits);
 const player = new Player(camera, world, scene);
 const entities = new EntityManager(scene, world, world.atlas);
-// Breaking a block drops the block's item (stone->cobble, ore->material, etc.).
-player.onBreak = (x, y, z, id) => entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, dropForBlock(id));
+// Breaking a block drops the block's item (stone->cobble, ore->material, etc.),
+// but only when harvested with the right tool/tier (gated blocks yield nothing).
+player.onBreak = (x, y, z, id, harvest) => {
+  if (harvest) entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, dropForBlock(id));
+};
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 if (saved?.sky?.t != null) sky.t = saved.sky.t;
 
@@ -86,7 +89,7 @@ function renderSlots(el, clickable) {
       slot.addEventListener("click", () => setSelected(i, true));
       slot.addEventListener("contextmenu", (e) => {
         e.preventDefault(); hotbar[i] = null;
-        if (i === selected) player.placeId = 0;
+        if (i === selected) applyHeld();
         buildHotbars();
       });
     }
@@ -98,11 +101,17 @@ function applySelection() {
   [hotbarEl, invHotbarEl].forEach((el) =>
     [...el.children].forEach((c, i) => c.classList.toggle("selected", i === selected)));
 }
+// Sync the player's held state to the selected slot: what it places (the block
+// the item maps to, 0 = non-placeable) and what tool it mines with.
+function applyHeld() {
+  const item = hotbar[selected];
+  player.placeId = blockForItem(item) ?? 0;
+  player.toolInfo = toolStats(item);
+}
 function setSelected(arg, isIndex) {
   const len = hotbar.length;
   selected = isIndex ? Math.max(0, Math.min(len - 1, arg)) : (selected + arg + len) % len;
-  // The player places the block this item maps to (0 = nothing / non-placeable).
-  player.placeId = blockForItem(hotbar[selected]) ?? 0;
+  applyHeld();
   applySelection();
 }
 player.onSelect = setSelected;
@@ -118,7 +127,7 @@ function buildPalette() {
     const name = document.createElement("span");
     name.className = "inv-name"; name.textContent = def.name; cell.appendChild(name);
     cell.addEventListener("click", () => {
-      hotbar[selected] = id; player.placeId = blockForItem(id) ?? 0; buildHotbars();
+      hotbar[selected] = id; applyHeld(); buildHotbars();
     });
     invGridEl.appendChild(cell);
   });

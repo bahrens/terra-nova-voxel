@@ -174,6 +174,16 @@ const TILE_PAINTERS = {
   coal_item: lumpTile(0x2e2e2e),
   iron_item: lumpTile(0xc2b3a3),
   gold_item: lumpTile(0xf4d24a),
+  // tool icons (handle + tier-coloured head): wood / stone / iron
+  wood_pickaxe: toolTile("pickaxe", "#a9712f"),
+  stone_pickaxe: toolTile("pickaxe", "#8d8d90"),
+  iron_pickaxe: toolTile("pickaxe", "#dadada"),
+  wood_axe: toolTile("axe", "#a9712f"),
+  stone_axe: toolTile("axe", "#8d8d90"),
+  iron_axe: toolTile("axe", "#dadada"),
+  wood_shovel: toolTile("shovel", "#a9712f"),
+  stone_shovel: toolTile("shovel", "#8d8d90"),
+  iron_shovel: toolTile("shovel", "#dadada"),
   torch: (ctx, x0, y0, rng) => {
     ctx.clearRect(x0, y0, TILE, TILE);
     ctx.fillStyle = "#6e4a26";                              // wooden stick
@@ -217,6 +227,28 @@ function lumpTile(baseHex) {
         ctx.fillStyle = shade(baseHex, Math.floor((rng() - 0.5) * 34));
         ctx.fillRect(x0 + x, y0 + y, 1, 1);
       }
+  };
+}
+
+// A tool icon: a diagonal wooden handle plus a tier-coloured head whose shape
+// depends on the tool type. Transparent background.
+function toolTile(shape, head) {
+  return (ctx, x0, y0) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    ctx.strokeStyle = "#6e4a26"; ctx.lineWidth = 2; // handle
+    ctx.beginPath(); ctx.moveTo(x0 + 4, y0 + 14); ctx.lineTo(x0 + 10, y0 + 5); ctx.stroke();
+    ctx.fillStyle = head;
+    if (shape === "pickaxe") {
+      ctx.fillRect(x0 + 4, y0 + 3, 9, 2);
+      ctx.fillRect(x0 + 4, y0 + 3, 2, 3);
+      ctx.fillRect(x0 + 11, y0 + 3, 2, 3);
+    } else if (shape === "axe") {
+      ctx.fillRect(x0 + 9, y0 + 2, 4, 6);
+      ctx.fillRect(x0 + 8, y0 + 4, 1, 3);
+    } else { // shovel
+      ctx.fillRect(x0 + 8, y0 + 2, 4, 5);
+      ctx.fillRect(x0 + 9, y0 + 7, 2, 1);
+    }
   };
 }
 
