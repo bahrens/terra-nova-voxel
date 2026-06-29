@@ -241,12 +241,16 @@ Not final — we'll make the call when we get there, but plan seams as if both a
       create a source (level 9) and wake the sim, or filter Water/Bedrock out of
       the palette. Deferred for now.
 - [~] **Concave-corner shading** — two parts:
-      (a) *Triangular corner shadow (fixed):* at an L/concave corner the AO contact
-      shadow showed up as a hard-edged triangle on one block's face, worst at night.
-      Cause: the mesher's quad-triangulation flip was inverted, so a lone dark
-      corner got trapped in a single triangle instead of spreading. Fixed by
-      correcting the diagonal choice (standard 0fps AO-anisotropy rule) in
-      `chunk.emitFace`.
+      (a) *Triangular / over-dark corner shadow (fixed):* at an L/concave corner the
+      AO contact shadow was a hard, near-black triangle on one block's face, worst
+      on light blocks (sand) and at night. Two causes, both fixed in
+      `chunk.emitFace`: (1) AO was baked into the light value and then run through
+      the steep light curve, crushing shadowed corners from ~0.25 to ~0.08 (~6× too
+      dark vs Minecraft's ~0.5) — now AO is a gentle separate multiply (0.5–1.0)
+      applied *after* the curve, with the light average falling back to the face
+      cell's light for solid neighbours; (2) the quad-triangulation flip was
+      inverted (0fps AO-anisotropy rule), trapping a lone dark corner in one
+      triangle — now corrected so the shadow spreads smoothly.
       (b) *No visible edge between adjacent blocks (open):* coplanar same-texture
       faces still blend into one surface, so a stack/pile of blocks lacks per-block
       definition. Future: subtle per-block contact/edge darkening, more inter-tile

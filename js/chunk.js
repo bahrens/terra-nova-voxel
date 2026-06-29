@@ -315,20 +315,20 @@ export class Chunk {
       const cnr = isOpaque(world.getBlock(ccx, ccy, ccz));
       ao.push(aoValue(s1 ? 1 : 0, s2 ? 1 : 0, cnr ? 1 : 0));
 
-      // Smooth lighting, Minecraft-style: average the face cell with its three
-      // corner neighbours over a FIXED divisor of 4, counting solid/hidden cells
-      // as light 0. That zero-contribution is what darkens concave corners — i.e.
-      // the ambient-occlusion effect lives in the light average itself (so there's
-      // no separate AO multiply below). Convex edges and flat faces keep full
-      // light, so inside corners no longer flare bright.
+      // Smooth lighting: average the face cell with its three corner neighbours
+      // over a fixed divisor of 4. Solid/hidden cells fall back to the FACE cell's
+      // light (not 0) so the value tracks the real propagated light without baking
+      // in any darkening — ambient occlusion is applied separately below (in the
+      // r channel), AFTER the curve, so it stays a gentle multiply instead of
+      // being crushed to near-black by the falloff.
       const occluded = cnr || (s1 && s2);
-      const eS1 = s1 ? 0 : world.getSkyLight(e1x, e1y, e1z);
-      const eS2 = s2 ? 0 : world.getSkyLight(e2x, e2y, e2z);
-      const cS = occluded ? 0 : world.getSkyLight(ccx, ccy, ccz);
+      const eS1 = s1 ? fSky : world.getSkyLight(e1x, e1y, e1z);
+      const eS2 = s2 ? fSky : world.getSkyLight(e2x, e2y, e2z);
+      const cS = occluded ? fSky : world.getSkyLight(ccx, ccy, ccz);
       skyV.push((fSky + eS1 + eS2 + cS) / 4 / 15);
-      const eB1 = s1 ? 0 : world.getBlockLight(e1x, e1y, e1z);
-      const eB2 = s2 ? 0 : world.getBlockLight(e2x, e2y, e2z);
-      const cB = occluded ? 0 : world.getBlockLight(ccx, ccy, ccz);
+      const eB1 = s1 ? fBlock : world.getBlockLight(e1x, e1y, e1z);
+      const eB2 = s2 ? fBlock : world.getBlockLight(e2x, e2y, e2z);
+      const cB = occluded ? fBlock : world.getBlockLight(ccx, ccy, ccz);
       blockV.push((fBlock + eB1 + eB2 + cB) / 4 / 15);
     }
 
@@ -337,9 +337,10 @@ export class Chunk {
       buf.positions.push(positions[i][0], positions[i][1], positions[i][2]);
       buf.normals.push(dx, dy, dz);
       buf.uvs.push(uvCoords[i][0], uvCoords[i][1]);
-      // r = directional face shading only (AO now lives in the smoothed light),
-      // g = skylight, b = block light (both smoothed per vertex).
-      buf.colors.push(light, skyV[i], blockV[i]);
+      // r = directional face shading × gentle ambient occlusion (0.5–1.0). The
+      // shader multiplies this onto the curved light, so AO dims corners by a mild
+      // factor instead of being run through the steep light curve.
+      buf.colors.push(light * AO_LEVELS[ao[i]], skyV[i], blockV[i]);
     }
 
     // Split the quad along the diagonal that runs THROUGH the darker pair of
