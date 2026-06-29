@@ -115,10 +115,16 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       light) and use the side tile on all faces (plants look like cubes); pickup
       just despawns (no inventory counts until survival). Player isn't refactored
       onto `Entity` yet — its physics is mirrored; unifying is a later cleanup.
-- [ ] **Items as a first-class concept, distinct from blocks** — an item registry
-      separate from the block registry (tools, food, materials, "block items").
-      The single most important missing abstraction: inventory, crafting, drops,
-      and mining all depend on it. Today *everything is a block*.
+- [~] **Items as a first-class concept, distinct from blocks** — *increment 1 done
+      (`js/items.js`):* an item registry separate from blocks. Every block gets a
+      "block item" (placeable); plus non-block **material items** (coal, iron, gold)
+      that can't be placed. Block↔item maps + a per-block **drop table** are the
+      seams the game now uses instead of raw block ids: the hotbar/inventory hold
+      item ids, placing maps item→block, and breaking a block drops its item
+      (stone→cobble, ores→materials, grass→dirt, leaves→nothing). Dropped items
+      render as a cube (block items) or a flat card (materials). *Remaining:* tools
+      & food item types, stack/count semantics (with survival), and crafting that
+      consumes/produces items.
 - [~] **Inventory** — *increment 1 done:* a creative block palette (press `E`)
       with a customisable, persisted 9-slot hotbar — pick a slot, click a block to
       assign it, right-click to clear; the layout saves with the world. The hotbar
@@ -202,17 +208,15 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Open questions to decide before pluggability
 
-Current lean (2026-06-28): **likely both survival and multiplayer in the base.**
-Not final — we'll make the call when we get there, but plan seams as if both are in.
-
+- [x] **Survival vs creative — DECIDED (2026-06-29):** the base game ships **both
+      creative and survival** modes. It's only a question of *timing* — survival
+      mechanics (health/hunger/stacks/mining-costs) land when sequencing makes
+      sense. Build systems mode-agnostic: e.g. items already carry `maxStack` for
+      later count semantics; creative ignores counts, survival enforces them.
 - [ ] **Multiplayer or not?** Not a feature — an architecture decision that colors
       everything (authoritative server, entity sync, deterministic gen). If *any*
       downstream game might be multiplayer, the engine seams must assume it early.
       *Leaning: in the base.* Decide explicitly when we reach it.
-- [ ] **Does survival live in the base game, or is it a pluggable game on top?**
-      I.e. is the base a creative sandbox with survival built on top, or does the
-      base ship survival mechanics? *Leaning: survival in the base.* Final call
-      deferred; affects Tier 2 priorities.
 
 ## Bugs & polish
 

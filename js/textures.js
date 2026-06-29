@@ -170,6 +170,10 @@ const TILE_PAINTERS = {
   },
   flower_red: flowerTile("#d6453b"),
   flower_yellow: flowerTile("#e8c33a"),
+  // material item icons
+  coal_item: lumpTile(0x2e2e2e),
+  iron_item: lumpTile(0xc2b3a3),
+  gold_item: lumpTile(0xf4d24a),
   torch: (ctx, x0, y0, rng) => {
     ctx.clearRect(x0, y0, TILE, TILE);
     ctx.fillStyle = "#6e4a26";                              // wooden stick
@@ -199,6 +203,20 @@ function oreTile(spec) {
       ctx.fillRect(bx, by, 2, 2);
       ctx.fillRect(bx + 1, by + 2, 1, 1);
     }
+  };
+}
+
+// A small speckled lump on a transparent background (material item icons).
+function lumpTile(baseHex) {
+  return (ctx, x0, y0, rng) => {
+    ctx.clearRect(x0, y0, TILE, TILE);
+    for (let y = 0; y < TILE; y++)
+      for (let x = 0; x < TILE; x++) {
+        const dx = x - 7.5, dy = y - 7.5;
+        if (dx * dx + dy * dy > 28) continue; // round-ish blob
+        ctx.fillStyle = shade(baseHex, Math.floor((rng() - 0.5) * 34));
+        ctx.fillRect(x0 + x, y0 + y, 1, 1);
+      }
   };
 }
 

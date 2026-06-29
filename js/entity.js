@@ -4,8 +4,9 @@
 // entity types only add behaviour. EntityManager owns the list, ticks them, and
 // adds/removes their meshes from the scene.
 import * as THREE from "three";
-import { isSolid, BLOCKS } from "./blocks.js";
+import { isSolid } from "./blocks.js";
 import { WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
+import { ITEMS, isBlockItem } from "./items.js";
 
 const GRAVITY = 28;
 
@@ -64,39 +65,37 @@ export class Entity {
   dispose(scene) { if (this.mesh) scene.remove(this.mesh); }
 }
 
-// Small textured cube geometries, one per block id, with the block's side tile
-// mapped onto every face. Cached and shared across all drops of that block.
+// Geometry per item: a small cube for block items, a flat card for materials,
+// with the item's tile mapped onto every face. Cached and shared across drops.
 const itemGeoCache = new Map();
-function itemGeometry(atlas, blockId) {
-  let g = itemGeoCache.get(blockId);
+function itemGeometry(atlas, itemId) {
+  let g = itemGeoCache.get(itemId);
   if (g) return g;
-  const def = BLOCKS[blockId];
-  const [u0, v0, u1, v1] = atlas.uv(def.faces.side);
-  g = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+  const [u0, v0, u1, v1] = atlas.uv(ITEMS[itemId].tile);
+  g = isBlockItem(itemId) ? new THREE.BoxGeometry(0.3, 0.3, 0.3)
+                          : new THREE.BoxGeometry(0.32, 0.32, 0.04); // flat card
   const uv = g.attributes.uv; // every face uses unit-square uvs -> remap to the tile
   for (let i = 0; i < uv.count; i++) {
     uv.setXY(i, u0 + uv.getX(i) * (u1 - u0), v0 + uv.getY(i) * (v1 - v0));
   }
   uv.needsUpdate = true;
-  itemGeoCache.set(blockId, g);
+  itemGeoCache.set(itemId, g);
   return g;
 }
 
-// A dropped block: pops out, falls, settles with a bob/spin, then is vacuumed to
+// A dropped item: pops out, falls, settles with a bob/spin, then is vacuumed to
 // the player when near. Despawns after `ttl` seconds as a safety.
 export class ItemEntity extends Entity {
-  constructor(world, x, y, z, blockId, atlas, material) {
+  constructor(world, x, y, z, itemId, atlas, material) {
     super(world, x, y, z, 0.13, 0.26);
-    this.blockId = blockId;
+    this.itemId = itemId;
     this.age = 0;
     this.ttl = 300;
     this.homing = false;
     this.phase = (x * 12.9898 + z * 78.233) % (Math.PI * 2); // deterministic-ish offset
-    this.velocity.set((world ? 0 : 0), 0, 0);
     // Pop out with a little random scatter + upward kick.
-    const a = this.phase;
-    this.velocity.set(Math.cos(a) * 1.6, 3.2, Math.sin(a) * 1.6);
-    this.mesh = new THREE.Mesh(itemGeometry(atlas, blockId), material);
+    this.velocity.set(Math.cos(this.phase) * 1.6, 3.2, Math.sin(this.phase) * 1.6);
+    this.mesh = new THREE.Mesh(itemGeometry(atlas, itemId), material);
   }
 
   update(dt, ctx) {
@@ -247,9 +246,9 @@ export class EntityManager {
     this.itemMaterial = new THREE.MeshBasicMaterial({ map: atlas.texture, alphaTest: 0.3 });
   }
 
-  spawnItem(x, y, z, blockId) {
-    if (!BLOCKS[blockId]) return null;
-    const e = new ItemEntity(this.world, x, y, z, blockId, this.atlas, this.itemMaterial);
+  spawnItem(x, y, z, itemId) {
+    if (!itemId || !ITEMS[itemId]) return null;
+    const e = new ItemEntity(this.world, x, y, z, itemId, this.atlas, this.itemMaterial);
     this.scene.add(e.mesh);
     this.list.push(e);
     return e;

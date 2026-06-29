@@ -5,7 +5,8 @@ import { World } from "./world.js";
 import { Player } from "./player.js";
 import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
-import { HOTBAR, BLOCKS, BLOCK } from "./blocks.js";
+import { BLOCKS, BLOCK } from "./blocks.js";
+import { ITEMS, blockForItem, dropForBlock, DEFAULT_HOTBAR } from "./items.js";
 import { EntityManager } from "./entity.js";
 
 const SKY = 0x9ad0f0;
@@ -44,21 +45,21 @@ const world = new World(scene, { seed, renderDistance: RENDER_DISTANCE });
 if (saved?.edits) world.loadEditsData(saved.edits);
 const player = new Player(camera, world, scene);
 const entities = new EntityManager(scene, world, world.atlas);
-// Breaking a block drops it as an item entity (the start of mining drops).
-player.onBreak = (x, y, z, id) => entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, id);
+// Breaking a block drops the block's item (stone->cobble, ore->material, etc.).
+player.onBreak = (x, y, z, id) => entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, dropForBlock(id));
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 if (saved?.sky?.t != null) sky.t = saved.sky.t;
 
 // ---- Hotbar + inventory ----
-// The hotbar is 9 mutable slots (a block id or null), customised from the
-// inventory and persisted in the save; it defaults to the built-in HOTBAR.
+// The hotbar is 9 mutable slots (an item id or null), customised from the
+// inventory and persisted in the save; it defaults to DEFAULT_HOTBAR.
 function sanitizeHotbar(arr) {
   if (!Array.isArray(arr)) return null;
   const out = [];
-  for (let i = 0; i < 9; i++) { const v = arr[i]; out.push(v != null && BLOCKS[v] ? v : null); }
+  for (let i = 0; i < 9; i++) { const v = arr[i]; out.push(v != null && ITEMS[v] ? v : null); }
   return out;
 }
-let hotbar = sanitizeHotbar(saved?.hotbar) || [...HOTBAR];
+let hotbar = sanitizeHotbar(saved?.hotbar) || [...DEFAULT_HOTBAR];
 let selected = 0;
 
 const hotbarEl = document.getElementById("hotbar");
@@ -70,10 +71,10 @@ const invGridEl = document.getElementById("invGrid");
 function renderSlots(el, clickable) {
   el.innerHTML = "";
   hotbar.forEach((id, i) => {
-    const def = id != null ? BLOCKS[id] : null;
+    const def = id != null ? ITEMS[id] : null;
     const slot = document.createElement("div");
     slot.className = "slot" + (i === selected ? " selected" : "");
-    if (def) slot.appendChild(world.atlas.iconCanvas(def.faces.side, 38));
+    if (def) slot.appendChild(world.atlas.iconCanvas(def.tile, 38));
     const num = document.createElement("span");
     num.className = "num"; num.textContent = i + 1; slot.appendChild(num);
     if (def) {
@@ -99,23 +100,24 @@ function applySelection() {
 function setSelected(arg, isIndex) {
   const len = hotbar.length;
   selected = isIndex ? Math.max(0, Math.min(len - 1, arg)) : (selected + arg + len) % len;
-  player.placeId = hotbar[selected] ?? 0;
+  // The player places the block this item maps to (0 = nothing / non-placeable).
+  player.placeId = blockForItem(hotbar[selected]) ?? 0;
   applySelection();
 }
 player.onSelect = setSelected;
 
-// Creative palette: one cell per block; click assigns it to the selected slot.
+// Creative palette: one cell per item; click assigns it to the selected slot.
 function buildPalette() {
   invGridEl.innerHTML = "";
-  Object.keys(BLOCKS).map(Number).forEach((id) => {
-    const def = BLOCKS[id];
+  Object.keys(ITEMS).forEach((id) => {
+    const def = ITEMS[id];
     const cell = document.createElement("div");
     cell.className = "inv-item"; cell.title = def.name;
-    cell.appendChild(world.atlas.iconCanvas(def.faces.side, 34));
+    cell.appendChild(world.atlas.iconCanvas(def.tile, 34));
     const name = document.createElement("span");
     name.className = "inv-name"; name.textContent = def.name; cell.appendChild(name);
     cell.addEventListener("click", () => {
-      hotbar[selected] = id; player.placeId = id; buildHotbars();
+      hotbar[selected] = id; player.placeId = blockForItem(id) ?? 0; buildHotbars();
     });
     invGridEl.appendChild(cell);
   });
