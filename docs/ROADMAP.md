@@ -211,6 +211,13 @@ Not final — we'll make the call when we get there, but plan seams as if both a
       placeholder. Want a real 3D torch post, and the ability to place it on the
       *side* of a block (angled outward), like Minecraft. Depends on the non-cube
       block-shape work (Tier 3) and a placement rule for which faces accept it.
+- [ ] **Placeable water is janky** — placing Water from the creative palette
+      calls `setBlock`, which makes a WATER block at level 0 (not a source), so it
+      renders as a thin non-flowing sliver instead of spreading. Real fix ties to
+      placeable water **sources / buckets** and the water-physics/improvements work
+      (Tier 3). Quick stopgaps if wanted sooner: make creative water placement
+      create a source (level 9) and wake the sim, or filter Water/Bedrock out of
+      the palette. Deferred for now.
 - [ ] **See-through flicker on block break** — for a fraction of a second after
       breaking a block you can see through the world until the chunk remesh lands.
       Cause: the edit marks the chunk dirty but the remesh runs later, behind the
