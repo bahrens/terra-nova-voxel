@@ -80,29 +80,48 @@ export class Chunk {
   }
 
   // Recompute skylight (high nibble) and block light (low nibble) for the whole
-  // chunk (chunk-local: borders act as walls, so light doesn't yet cross chunk
-  // seams — a later increment). Skylight falls straight down from open sky at
-  // full level; block light radiates from emitter blocks (torches). Both decay
-  // -1 per step and are blocked by opaque blocks.
-  computeLight() {
+  // chunk. Seeds from open sky, emitter blocks (torches), AND the light of loaded
+  // horizontal neighbours (one step of decay across the border) so light crosses
+  // chunk seams. Both channels decay -1 per step and are blocked by opaque blocks;
+  // skylight additionally falls straight down at full level (sunlight columns).
+  // `world` resolves neighbour chunks; omit it for a chunk-local result.
+  computeLight(world) {
     const L = this.light;
     L.fill(0);
     const S = CHUNK_SIZE;
+    const data = this.data;
     const inBounds = (x, y, z) =>
       x >= 0 && x < S && z >= 0 && z < S && y >= 0 && y < WORLD_HEIGHT;
+    const west = world && world.getChunk(this.cx - 1, this.cz);
+    const east = world && world.getChunk(this.cx + 1, this.cz);
+    const north = world && world.getChunk(this.cx, this.cz - 1);
+    const south = world && world.getChunk(this.cx, this.cz + 1);
 
     // --- Skylight (high nibble) ---
     {
       const qx = [], qy = [], qz = [];
-      for (let z = 0; z < S; z++) {
-        for (let x = 0; x < S; x++) {
+      const seed = (x, y, z, level) => {
+        if (level <= 0) return;
+        const i = Chunk.idx(x, y, z);
+        if (isOpaque(data[i]) || ((L[i] >> 4) & 15) >= level) return;
+        L[i] = (L[i] & 0x0f) | (level << 4);
+        qx.push(x); qy.push(y); qz.push(z);
+      };
+      // Open-sky columns: full level down to the first opaque block.
+      for (let z = 0; z < S; z++)
+        for (let x = 0; x < S; x++)
           for (let y = WORLD_HEIGHT - 1; y >= 0; y--) {
-            if (isOpaque(this.data[Chunk.idx(x, y, z)])) break;
-            L[Chunk.idx(x, y, z)] = 15 << 4;
-            qx.push(x); qy.push(y); qz.push(z);
+            if (isOpaque(data[Chunk.idx(x, y, z)])) break;
+            seed(x, y, z, 15);
           }
+      // Incoming from loaded neighbours (one horizontal step of decay).
+      for (let y = 0; y < WORLD_HEIGHT; y++)
+        for (let i = 0; i < S; i++) {
+          if (west) seed(0, y, i, west.getSky(S - 1, y, i) - 1);
+          if (east) seed(S - 1, y, i, east.getSky(0, y, i) - 1);
+          if (north) seed(i, y, 0, north.getSky(i, y, S - 1) - 1);
+          if (south) seed(i, y, S - 1, south.getSky(i, y, 0) - 1);
         }
-      }
       for (let head = 0; head < qx.length; head++) {
         const x = qx[head], y = qy[head], z = qz[head];
         const s = (L[Chunk.idx(x, y, z)] >> 4) & 15;
@@ -112,9 +131,8 @@ export class Chunk {
         for (const [nx, ny, nz] of N) {
           if (!inBounds(nx, ny, nz)) continue;
           const ni = Chunk.idx(nx, ny, nz);
-          if (isOpaque(this.data[ni])) continue;
-          // Straight-down keeps level 15 (sunlight column); else decay by 1.
-          const nl = (ny === y - 1 && s === 15) ? 15 : s - 1;
+          if (isOpaque(data[ni])) continue;
+          const nl = (ny === y - 1 && s === 15) ? 15 : s - 1; // sunlight column
           if (((L[ni] >> 4) & 15) < nl) {
             L[ni] = (L[ni] & 0x0f) | (nl << 4);
             qx.push(nx); qy.push(ny); qz.push(nz);
@@ -126,18 +144,32 @@ export class Chunk {
     // --- Block light (low nibble) ---
     {
       const qx = [], qy = [], qz = [];
-      for (let y = 0; y < WORLD_HEIGHT; y++) {
-        for (let z = 0; z < S; z++) {
+      const seed = (x, y, z, level) => {
+        if (level <= 0) return;
+        const i = Chunk.idx(x, y, z);
+        if (isOpaque(data[i]) || (L[i] & 15) >= level) return;
+        L[i] = (L[i] & 0xf0) | level;
+        qx.push(x); qy.push(y); qz.push(z);
+      };
+      // Emitter blocks.
+      for (let y = 0; y < WORLD_HEIGHT; y++)
+        for (let z = 0; z < S; z++)
           for (let x = 0; x < S; x++) {
-            const e = BLOCKS[this.data[Chunk.idx(x, y, z)]]?.light || 0;
+            const e = BLOCKS[data[Chunk.idx(x, y, z)]]?.light || 0;
             if (e > 0) {
               const i = Chunk.idx(x, y, z);
               L[i] = (L[i] & 0xf0) | e;
               qx.push(x); qy.push(y); qz.push(z);
             }
           }
+      // Incoming from loaded neighbours.
+      for (let y = 0; y < WORLD_HEIGHT; y++)
+        for (let i = 0; i < S; i++) {
+          if (west) seed(0, y, i, west.getBlockL(S - 1, y, i) - 1);
+          if (east) seed(S - 1, y, i, east.getBlockL(0, y, i) - 1);
+          if (north) seed(i, y, 0, north.getBlockL(i, y, S - 1) - 1);
+          if (south) seed(i, y, S - 1, south.getBlockL(i, y, 0) - 1);
         }
-      }
       for (let head = 0; head < qx.length; head++) {
         const x = qx[head], y = qy[head], z = qz[head];
         const b = L[Chunk.idx(x, y, z)] & 15;
@@ -147,7 +179,7 @@ export class Chunk {
         for (const [nx, ny, nz] of N) {
           if (!inBounds(nx, ny, nz)) continue;
           const ni = Chunk.idx(nx, ny, nz);
-          if (isOpaque(this.data[ni])) continue;
+          if (isOpaque(data[ni])) continue;
           const nl = b - 1;
           if ((L[ni] & 15) < nl) {
             L[ni] = (L[ni] & 0xf0) | nl;

@@ -80,11 +80,11 @@ lost short list. Items the original list explicitly named are marked ⭐.)
     (2) block light + a TORCH block (emitter) in the hotbar; (3) cross-chunk
     propagation + relight on neighbour load (kill border seams); (4) incremental
     relight on edits instead of whole-chunk recompute.
-  - Increments 1–2 are chunk-local (border seams accepted, like early AO/water);
-    3 fixes seams, 4 is the perf pass. **Status: increments 1–2 done (skylight +
-    block light/torches); 3–4 pending.** Known gaps: torch placement isn't
-    validated for support (you can place a floating torch; it's only removed when
-    its support is dug out), and block light doesn't cross chunk borders yet.
+  - 4 is the perf pass. **Status: increments 1–3 done (skylight, block light/
+    torches, cross-chunk propagation via a relight queue); 4 pending.** Known gaps:
+    torch placement isn't validated for support (you can place a floating torch;
+    it's only removed when its support is dug out), and relighting recomputes the
+    whole chunk + re-meshes on every change (increment 4 makes it incremental).
 - [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
       "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)

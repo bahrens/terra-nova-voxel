@@ -66,6 +66,7 @@ export class World {
 
     this.genQueue = [];
     this.meshQueue = [];
+    this.lightQueue = new Set();   // chunk keys awaiting cross-chunk relight
     this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
     this.editsByChunk = new Map(); // chunkKey -> Map("wx,wy,wz" -> blockId): player edits
   }
@@ -183,7 +184,7 @@ export class World {
     chunk.setW(lx, y, lz, 0); // the cell's standing water is cleared by the edit
     this.recordEdit(x, y, z, id); // remember player edits for save/load
     if (!remesh) return;
-    chunk.computeLight(); // relight before remeshing (e.g. digging a shaft to sky)
+    chunk.computeLight(this); // relight before remeshing (e.g. digging a shaft to sky)
     chunk.dirty = true;
     this.queueMesh(chunk);
     // Remesh neighbours if the edit touches a chunk border.
@@ -191,6 +192,11 @@ export class World {
     if (lx === CHUNK_SIZE - 1) this.markNeighbor(cx + 1, cz);
     if (lz === 0) this.markNeighbor(cx, cz - 1);
     if (lz === CHUNK_SIZE - 1) this.markNeighbor(cx, cz + 1);
+    // Propagate the light change into neighbours across borders.
+    this.queueLight(cx - 1, cz);
+    this.queueLight(cx + 1, cz);
+    this.queueLight(cx, cz - 1);
+    this.queueLight(cx, cz + 1);
     // Wake the fluid so it flows into a broken block / re-settles around a placed one.
     this.enqueueWaterAround(x, y, z);
     // Drop any small plant left unsupported by this edit (no floating flowers).
@@ -305,6 +311,29 @@ export class World {
 
   queueMesh(chunk) {
     if (!this.meshQueue.includes(chunk)) this.meshQueue.push(chunk);
+  }
+
+  queueLight(cx, cz) {
+    if (this.chunks.has(key(cx, cz))) this.lightQueue.add(key(cx, cz));
+  }
+
+  // Recompute a chunk's light from its neighbours; if anything changed, remesh it
+  // and let the change ripple one chunk further. Light radius (≤15) is below the
+  // 16-wide chunk, so this settles within the immediate ring (no runaway cascade).
+  relightChunk(chunk) {
+    const prev = chunk.light.slice();
+    chunk.computeLight(this);
+    let changed = false;
+    for (let i = 0; i < prev.length; i++) {
+      if (prev[i] !== chunk.light[i]) { changed = true; break; }
+    }
+    if (!changed) return;
+    chunk.dirty = true;
+    this.queueMesh(chunk);
+    this.queueLight(chunk.cx - 1, chunk.cz);
+    this.queueLight(chunk.cx + 1, chunk.cz);
+    this.queueLight(chunk.cx, chunk.cz - 1);
+    this.queueLight(chunk.cx, chunk.cz + 1);
   }
 
   // ---- Terrain generation ----
@@ -447,7 +476,12 @@ export class World {
     this.floodWater(chunk);
     this.capIce(chunk);
     this.applyEdits(chunk); // overlay saved player edits
-    chunk.computeLight();   // seed skylight so neighbours can sample it when meshing
+    chunk.computeLight(this); // light this chunk, seeded from loaded neighbours
+    // Let neighbours re-receive light across the newly created border.
+    this.queueLight(cx - 1, cz);
+    this.queueLight(cx + 1, cz);
+    this.queueLight(cx, cz - 1);
+    this.queueLight(cx, cz + 1);
     return chunk;
   }
 
@@ -627,6 +661,7 @@ export class World {
     const now = (typeof performance !== "undefined") ? () => performance.now() : () => Date.now();
     const genMs = budget.genMs ?? 4;
     const meshMs = budget.meshMs ?? 6;
+    const lightMs = budget.lightMs ?? 4;
 
     // Queue generation (radius + 1 so mesh neighbours always have data).
     const genR = R + 1;
@@ -643,6 +678,18 @@ export class World {
     for (let i = 0; i < wanted.length; i++) {
       this.generateChunk(wanted[i].cx, wanted[i].cz);
       if (now() - tGen >= genMs) break; // always builds at least one
+    }
+
+    // Settle cross-chunk light propagation within a budget. relightChunk
+    // re-enqueues neighbours only when something changed, so this drains once a
+    // region's light reaches equilibrium.
+    const tLight = now();
+    while (this.lightQueue.size) {
+      const k = this.lightQueue.values().next().value;
+      this.lightQueue.delete(k);
+      const chunk = this.chunks.get(k);
+      if (chunk) this.relightChunk(chunk);
+      if (now() - tLight >= lightMs) break;
     }
 
     // Queue meshing for chunks in render distance whose neighbours exist.
