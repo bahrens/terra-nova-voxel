@@ -38,6 +38,7 @@ export class Player {
     scene.add(this.highlight);
 
     this.onSelect = null; // callback(deltaOrIndex) hook set by main
+    this.onBreak = null;  // callback(x, y, z, blockId) when a block is broken
 
     this.bindInput();
   }
@@ -233,6 +234,7 @@ export class Player {
     if (!hit) return;
     if (hit.block === BLOCK.BEDROCK) return;
     this.world.setBlock(hit.x, hit.y, hit.z, 0);
+    if (this.onBreak) this.onBreak(hit.x, hit.y, hit.z, hit.block);
   }
 
   placeBlock() {

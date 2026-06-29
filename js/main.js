@@ -6,6 +6,7 @@ import { Player } from "./player.js";
 import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
 import { HOTBAR, BLOCKS, BLOCK } from "./blocks.js";
+import { EntityManager } from "./entity.js";
 
 const SKY = 0x9ad0f0;
 const RENDER_DISTANCE = 10;
@@ -42,6 +43,9 @@ const seed = saved?.seed ?? DEFAULT_SEED;
 const world = new World(scene, { seed, renderDistance: RENDER_DISTANCE });
 if (saved?.edits) world.loadEditsData(saved.edits);
 const player = new Player(camera, world, scene);
+const entities = new EntityManager(scene, world, world.atlas);
+// Breaking a block drops it as an item entity (the start of mining drops).
+player.onBreak = (x, y, z, id) => entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, id);
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 if (saved?.sky?.t != null) sky.t = saved.sky.t;
 
@@ -275,6 +279,7 @@ function start() {
     const dt = clock.getDelta();
     if (player.enabled) player.update(dt);
     world.update(player.position);
+    if (player.enabled) entities.update(dt, player);
     // Step the fluid sim a few times a second so flow animates over ticks.
     waterAccum += dt;
     if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }
@@ -326,7 +331,7 @@ function updateDebug() {
   debugEl.textContent =
     `Terra Nova\n` +
     `xyz  ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}\n` +
-    `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}\n` +
+    `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}   ents ${entities.list.length}\n` +
     `fps  ${fps}   ${player.flying ? (player.flyFast ? "FLY·fast" : "FLY") : (player.onGround ? "ground" : "air")}\n` +
     `time ${clock24}   look ${looking}`;
 }

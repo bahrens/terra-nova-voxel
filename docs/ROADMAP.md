@@ -102,9 +102,19 @@ lost short list. Items the original list explicitly named are marked ⭐.)
     day/night *after* the curve so day (1.0) and night (0.26) surface brightness
     are unchanged while torch light rolls off naturally and shadow edges deepen.
     The 0.8 base is the tuning knob (higher = gentler/brighter falloff).
-- [ ] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
+- [~] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
-      "mobs" narrowly, or it gets redone. Greenfield. (Mobs = AI/spawning on top.)
+      "mobs" narrowly, or it gets redone. (Mobs = AI/spawning on top.)
+      *Increment 1 done (`js/entity.js`):* an `Entity` base with AABB voxel
+      physics (gravity + axis-separated collision, mirroring the player) and an
+      `EntityManager` that ticks the list and manages meshes. First concrete type
+      is `ItemEntity` — breaking a block drops a small spinning cube that falls,
+      settles, and is vacuumed to the player when near (proves the framework and
+      seeds the mining→drops→inventory chain). *Known gaps / next:* drops aren't
+      persisted in saves yet (transient); item cubes render full-bright (no world
+      light) and use the side tile on all faces (plants look like cubes); pickup
+      just despawns (no inventory counts until survival). Player isn't refactored
+      onto `Entity` yet — its physics is mirrored; unifying is a later cleanup.
 - [ ] **Items as a first-class concept, distinct from blocks** — an item registry
       separate from the block registry (tools, food, materials, "block items").
       The single most important missing abstraction: inventory, crafting, drops,
