@@ -52,7 +52,8 @@ export function setupTouch(player, opts = {}) {
     el.addEventListener("pointerdown", (e) => { e.preventDefault(); down(); });
     if (up) { el.addEventListener("pointerup", (e) => { e.preventDefault(); up(); }); el.addEventListener("pointercancel", up); }
   };
-  btn("btnJump", () => player.keys.add("Space"), () => player.keys.delete("Space"));
+  btn("btnJump", () => player.keys.add("Space"), () => player.keys.delete("Space")); // jump / fly up
+  btn("btnDown", () => player.keys.add("KeyC"), () => player.keys.delete("KeyC")); // descend while flying
   btn("btnBreak", () => { player.leftDown = true; }, () => { player.leftDown = false; player.mining = null; });
   btn("btnPlace", () => player.placeBlock());
   btn("btnFly", () => { player.flying = !player.flying; player.flyFast = false; });

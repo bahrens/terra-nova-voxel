@@ -216,9 +216,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       `lookDelta` method; the play/menu/inventory state was unified (`refreshUI`/
       `playing()`) so it no longer hard-depends on pointer lock — touch uses a flag,
       desktop uses the lock. Touch detected via `(pointer: coarse)`; hotbar is
-      tappable to select. **Needs real-device testing** (can't verify on desktop).
-      *Remaining:* responsive/scaled UI for small screens, mode (`G`) + dev toggles
-      on touch, control-layout/sensitivity tuning, and inventory drag on touch.
+      tappable to select. *Increment 2 (on-device fixes):* full-screen via PWA
+      meta tags + Fullscreen API on Play (iPhone needs Add-to-Home-Screen); killed
+      the iOS long-press selection/magnifier (`user-select`/`touch-callout: none`);
+      added a **fly-down** button; touch-friendly inventory sizing (`dvh`, momentum
+      scroll, bigger tap targets); `dvh` + visualViewport resize for the dynamic
+      URL bar. Landscape is the assumed orientation. *Remaining:* mode (`G`) + dev
+      toggles on touch, control-layout/sensitivity tuning, inventory drag.
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.

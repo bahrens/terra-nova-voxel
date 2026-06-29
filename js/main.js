@@ -262,7 +262,14 @@ function refreshUI() {
 }
 
 playBtn.addEventListener("click", () => {
-  if (isTouch) { touchPlaying = true; refreshUI(); }
+  if (isTouch) {
+    touchPlaying = true;
+    // Go full-screen on the Play gesture (Android/iPad; iPhone Safari ignores it
+    // for non-video — there, "Add to Home Screen" gives a full-screen PWA).
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+    refreshUI();
+  }
   else canvas.requestPointerLock();
 });
 const newWorldBtn = document.getElementById("newWorldBtn");
@@ -301,11 +308,15 @@ if (isTouch) {
   });
 }
 
-window.addEventListener("resize", () => {
+function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-});
+}
+window.addEventListener("resize", onResize);
+window.addEventListener("orientationchange", onResize);
+// iOS shows/hides the URL bar without a resize event — visualViewport catches it.
+if (window.visualViewport) window.visualViewport.addEventListener("resize", onResize);
 
 // ---- Prime the spawn area, then start ----
 const loadingEl = document.getElementById("loading");
