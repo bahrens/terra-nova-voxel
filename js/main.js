@@ -243,6 +243,11 @@ const touchEl = document.getElementById("touch");
 const buildInfoEl = document.getElementById("buildInfo");
 if (buildInfoEl) buildInfoEl.textContent = "build " + BUILD;
 
+// Mobile status-bar tint. Dark over menus/overlays, the live sky while playing.
+const themeColorEl = document.getElementById("themeColor");
+let _theme = "";
+function setTheme(hex) { if (themeColorEl && hex !== _theme) { _theme = hex; themeColorEl.content = hex; } }
+
 const isTouch = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 let inventoryOpen = false;
 let touchPlaying = false; // touch: in the game (vs the menu)
@@ -263,6 +268,7 @@ function refreshUI() {
   touchEl.classList.toggle("active", p && isTouch);
   inventoryEl.classList.toggle("active", inventoryOpen);
   menu.classList.toggle("hidden", p || inventoryOpen);
+  if (!p) setTheme("#0b1018"); // dark to match menu/inventory overlays; sky set while playing
 }
 
 playBtn.addEventListener("click", () => {
@@ -506,11 +512,10 @@ function applySky() {
     scene.fog.color.copy(sky.skyColor);
     scene.background.copy(sky.skyColor);
   }
-  // Tint the mobile status bar to the current sky so there's no contrasting band.
-  const hex = "#" + scene.background.getHexString();
-  if (themeColorEl.content !== hex) themeColorEl.content = hex;
+  // While in the world, tint the status bar to the live sky (refreshUI keeps it
+  // dark on menus/overlays).
+  if (playing()) setTheme("#" + scene.background.getHexString());
 }
-const themeColorEl = document.getElementById("themeColor");
 
 function updateDebug() {
   if (!player.enabled) return;
