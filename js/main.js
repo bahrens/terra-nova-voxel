@@ -454,6 +454,7 @@ const prof = new Profiler();
 // ---- Menu option buttons (so touch can reach the same toggles) ----
 const optModeBtn = document.getElementById("optMode");
 const optDayBtn = document.getElementById("optDay");
+const optNightBtn = document.getElementById("optNight");
 const optSaveBtn = document.getElementById("optSave");
 const optProfilerBtn = document.getElementById("optProfiler");
 const optLightBtn = document.getElementById("optLight");
@@ -465,6 +466,7 @@ function updateOptLabels() {
 }
 if (optModeBtn) optModeBtn.addEventListener("click", toggleMode);
 if (optDayBtn) optDayBtn.addEventListener("click", () => { sky.t = 0.32; toast("Set to morning"); });
+if (optNightBtn) optNightBtn.addEventListener("click", () => { sky.t = 0; toast("Set to midnight"); });
 if (optSaveBtn) optSaveBtn.addEventListener("click", () => { if (saveGame() === false) toast("Start the game first"); });
 if (optProfilerBtn) optProfilerBtn.addEventListener("click", toggleProfiler);
 if (optLightBtn) optLightBtn.addEventListener("click", toggleLightView);
