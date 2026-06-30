@@ -11,6 +11,7 @@ import { RECIPES, canCraft } from "./recipes.js";
 import { EntityManager } from "./entity.js";
 import { Profiler } from "./profiler.js";
 import { setupTouch } from "./touch.js";
+import { BUILD } from "./version.js";
 
 const SKY = 0x9ad0f0;
 const RENDER_DISTANCE = 10;
@@ -239,6 +240,8 @@ const hud = document.getElementById("hud");
 const debugEl = document.getElementById("debug");
 const inventoryEl = document.getElementById("inventory");
 const touchEl = document.getElementById("touch");
+const buildInfoEl = document.getElementById("buildInfo");
+if (buildInfoEl) buildInfoEl.textContent = "build " + BUILD;
 
 const isTouch = !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
 let inventoryOpen = false;
@@ -507,7 +510,7 @@ function updateDebug() {
   const mins = Math.floor(sky.t * 24 * 60);
   const clock24 = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
   debugEl.textContent =
-    `Terra Nova\n` +
+    `Terra Nova  build ${BUILD}\n` +
     `xyz  ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}\n` +
     `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}   ents ${entities.list.length}\n` +
     `fps  ${fps}   ${player.flying ? (player.flyFast ? "FLY·fast" : "FLY") : (player.onGround ? "ground" : "air")}\n` +

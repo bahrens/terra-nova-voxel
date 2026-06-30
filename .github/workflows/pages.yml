@@ -26,6 +26,8 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4 # checks out the triggering branch by default
+      - name: Stamp build version
+        run: echo "export const BUILD = \"${GITHUB_REF_NAME} ${GITHUB_SHA:0:7} $(date -u +'%Y-%m-%d %H:%MZ')\";" > js/version.js
       - uses: actions/configure-pages@v5
         with:
           enablement: true # auto-enable Pages (build type = GitHub Actions)

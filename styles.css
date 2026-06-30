@@ -357,6 +357,12 @@ body.is-touch #invClose { padding: 14px 32px; font-size: 16px; }
   font-size: 12px;
   opacity: .55;
 }
+.buildinfo {
+  margin-top: 14px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 11px;
+  opacity: .4;
+}
 #playBtn.secondary, button.secondary {
   margin-top: 10px;
   padding: 9px 22px;
