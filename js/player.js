@@ -40,6 +40,7 @@ export class Player {
 
     this.creative = false; // instant break (no mining) when true
     this.leftDown = false;
+    this._prevLeftDown = false; // for edge-detecting a fresh press (creative break)
     this.mining = null;    // { x, y, z, progress } while breaking by hand
     this.toolInfo = null;  // { type, tier, speed } of the held tool, set by main
 
@@ -119,7 +120,7 @@ export class Player {
     }, { passive: true });
     document.addEventListener("mousedown", (e) => {
       if (!this.enabled) return;
-      if (e.button === 0) { this.leftDown = true; if (this.creative) this.breakBlock(false); }
+      if (e.button === 0) this.leftDown = true; // creative break handled in updateMining (edge-detected)
       else if (e.button === 2) this.placeBlock();
     });
     document.addEventListener("mouseup", (e) => {
@@ -215,10 +216,23 @@ export class Player {
   // Hold-to-break mining: progress accumulates by the block's hardness, divided
   // by the held tool's speed when it matches the block's tool category. Harvest
   // (a drop) requires a matching tool of sufficient tier for gated blocks; else
-  // the block still breaks but yields nothing. Creative (instant break) is on
-  // mousedown instead. Resets if the target changes or the button is released.
+  // the block still breaks but yields nothing. Resets if the target changes or
+  // the button is released.
   updateMining(dt) {
-    if (!this.leftDown || this.creative) { this.mining = null; this.crack.visible = false; return; }
+    // Rising edge of the break input this frame. Mouse and touch both just set
+    // leftDown, so owning the edge here makes creative break work for both.
+    const pressed = this.leftDown && !this._prevLeftDown;
+    this._prevLeftDown = this.leftDown;
+
+    // Creative: one instant break per press (a click, or one touch-hold) — no
+    // mining progress, no drop.
+    if (this.creative) {
+      if (pressed) this.breakBlock(false);
+      this.mining = null; this.crack.visible = false;
+      return;
+    }
+
+    if (!this.leftDown) { this.mining = null; this.crack.visible = false; return; }
     const hit = this.raycast();
     if (!hit) { this.mining = null; this.crack.visible = false; return; }
     const hardness = blockHardness(hit.block);
