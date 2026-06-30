@@ -372,6 +372,13 @@ body.is-touch .controls { display: none; }
 }
 .controls b { color: #b6f0a8; }
 
+/* Menu options / settings (the touch-reachable equivalents of the shortcuts) */
+.menu-opts { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 14px; }
+.menu-opts .secondary { margin-top: 0; }
+.menu-adv { margin-top: 12px; font-size: 12px; }
+.menu-adv summary { cursor: pointer; opacity: .55; letter-spacing: 1px; margin-bottom: 8px; }
+.secondary.on { background: rgba(182,240,168,.22); border-color: rgba(182,240,168,.6); color: #eafbe4; }
+
 /* Transient toast (e.g. "Saved") */
 #toast {
   position: fixed;

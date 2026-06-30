@@ -230,8 +230,11 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       double-tap = start flying), **down** (crouch/descend, double-tap = stop
       flying), and a **chevron** that toggles run/walk on the ground or fast/slow
       flight (highlights when on). Added a basic **crouch** (slower + lowered
-      camera) and a **sprint toggle** to the player. *Remaining:* mode (`G`) + dev
-      toggles on touch, inventory drag, gesture-threshold + crouch edge-protection,
+      camera) and a **sprint toggle** to the player. *Increment 4 (menu options):*
+      a two-column landscape inventory (creative; single column in survival), and
+      **menu option buttons** for the keyboard-only toggles (mode, save, and an
+      Advanced group for profiler / light view / spawn critter) so touch can reach
+      them. *Remaining:* inventory drag, gesture-threshold + crouch edge-protection,
       and **touch look acceleration** (velocity curve) — mouse stays flat/raw.
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,

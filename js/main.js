@@ -416,32 +416,58 @@ function newWorld() {
 setInterval(() => { if (started) saveGame(); }, 15000);
 window.addEventListener("pagehide", () => saveGame());
 window.addEventListener("beforeunload", () => saveGame());
+// ---- Toggle actions (shared by keyboard shortcuts and the menu buttons) ----
+function toggleMode() {
+  player.creative = !player.creative;
+  refreshMode();
+  toast(player.creative ? "Creative mode" : "Survival mode");
+  updateOptLabels();
+}
+function toggleProfiler() {
+  prof.enabled = !prof.enabled;
+  toast(prof.enabled ? "Profiler: ON" : "Profiler: OFF");
+  updateOptLabels();
+}
+function toggleLightView() {
+  const u = world.materials.debugUniform;
+  u.value = u.value > 0.5 ? 0 : 1;
+  toast(u.value > 0.5 ? "Light view: ON (R=block, G=sky)" : "Light view: OFF");
+  updateOptLabels();
+}
+function spawnMobAhead() {
+  const f = player.forwardVector(false);
+  entities.spawnMob(player.position.x + f.x * 2, player.position.y + 1, player.position.z + f.z * 2);
+}
+
 document.addEventListener("keydown", (e) => {
   if (!started) return;
   if (e.code === "KeyK") saveGame();
   if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
   if (e.code === "Escape" && inventoryOpen) closeInventory();
-  // Toggle creative (instant break, infinite blocks) vs survival (mine, consume).
-  if (e.code === "KeyG") {
-    player.creative = !player.creative;
-    refreshMode();
-    toast(player.creative ? "Creative mode" : "Survival mode");
-  }
-  // Toggle the profiler overlay; V copies a snapshot to the clipboard.
-  if (e.code === "KeyP") { prof.enabled = !prof.enabled; toast(prof.enabled ? "Profiler: ON" : "Profiler: OFF"); }
+  if (e.code === "KeyG") toggleMode();          // creative <-> survival
+  if (e.code === "KeyP") toggleProfiler();
   if (e.code === "KeyV") copyProfilerSnapshot();
-  // Debug: spawn a critter a couple blocks ahead.
-  if (e.code === "KeyM") {
-    const f = player.forwardVector(false);
-    entities.spawnMob(player.position.x + f.x * 2, player.position.y + 1, player.position.z + f.z * 2);
-  }
-  // Debug: toggle the raw light view (R = block light, G = skylight).
-  if (e.code === "KeyL") {
-    const u = world.materials.debugUniform;
-    u.value = u.value > 0.5 ? 0 : 1;
-    toast(u.value > 0.5 ? "Light view: ON (R=block, G=sky)" : "Light view: OFF");
-  }
+  if (e.code === "KeyM") spawnMobAhead();        // spawn a critter ahead
+  if (e.code === "KeyL") toggleLightView();
 });
+
+// ---- Menu option buttons (so touch can reach the same toggles) ----
+const optModeBtn = document.getElementById("optMode");
+const optSaveBtn = document.getElementById("optSave");
+const optProfilerBtn = document.getElementById("optProfiler");
+const optLightBtn = document.getElementById("optLight");
+const optMobBtn = document.getElementById("optMob");
+function updateOptLabels() {
+  if (optModeBtn) optModeBtn.textContent = "Mode: " + (player.creative ? "Creative" : "Survival");
+  if (optProfilerBtn) optProfilerBtn.classList.toggle("on", prof.enabled);
+  if (optLightBtn) optLightBtn.classList.toggle("on", world.materials.debugUniform.value > 0.5);
+}
+if (optModeBtn) optModeBtn.addEventListener("click", toggleMode);
+if (optSaveBtn) optSaveBtn.addEventListener("click", () => { if (saveGame() === false) toast("Start the game first"); });
+if (optProfilerBtn) optProfilerBtn.addEventListener("click", toggleProfiler);
+if (optLightBtn) optLightBtn.addEventListener("click", toggleLightView);
+if (optMobBtn) optMobBtn.addEventListener("click", spawnMobAhead);
+updateOptLabels();
 
 // Transient on-screen message.
 const toastEl = document.getElementById("toast");
