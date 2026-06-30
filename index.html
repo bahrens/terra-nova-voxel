@@ -89,15 +89,20 @@
       <p class="inv-hint">Pick a hotbar slot, then click an item to assign it.
         Right-click a slot to clear. <b>E</b> or <b>Esc</b> to close.</p>
 
-      <div class="inv-sub">Your items <span id="invItemsEmpty" class="inv-faint">— mine blocks to collect drops (survival)</span></div>
-      <div id="invItems" class="inv-grid"></div>
+      <div class="inv-cols">
+        <div class="inv-col">
+          <div class="inv-sub">Your items <span id="invItemsEmpty" class="inv-faint">— mine blocks to collect drops (survival)</span></div>
+          <div id="invItems" class="inv-grid"></div>
 
-      <div class="inv-sub">Crafting</div>
-      <div id="invCrafting" class="inv-recipes"></div>
-
-      <div id="invPalette">
-        <div class="inv-sub">All items (creative)</div>
-        <div id="invGrid" class="inv-grid"></div>
+          <div id="invPalette">
+            <div class="inv-sub">All items (creative)</div>
+            <div id="invGrid" class="inv-grid"></div>
+          </div>
+        </div>
+        <div class="inv-col">
+          <div class="inv-sub">Crafting</div>
+          <div id="invCrafting" class="inv-recipes"></div>
+        </div>
       </div>
 
       <div class="inv-sub">Hotbar</div>

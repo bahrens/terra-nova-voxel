@@ -129,7 +129,7 @@ body.is-touch #hotbar { pointer-events: auto; touch-action: none; }
 }
 #inventory.active { display: flex; }
 .inv-panel {
-  width: min(740px, 92vw);
+  width: min(880px, 94vw);
   max-height: 88vh;
   overflow-y: auto;
   padding: 24px 28px 28px;
@@ -138,6 +138,10 @@ body.is-touch #hotbar { pointer-events: auto; touch-action: none; }
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(0,0,0,.5);
 }
+/* Two columns side by side (Your items + palette | Crafting); stacks when narrow. */
+.inv-cols { display: flex; gap: 22px; align-items: flex-start; }
+.inv-col { flex: 1; min-width: 0; }
+@media (max-width: 560px) { .inv-cols { display: block; } }
 .inv-panel h2 { font-size: 22px; letter-spacing: 2px; }
 .inv-hint { margin: 6px 0 16px; font-size: 12px; line-height: 1.5; opacity: .6; }
 .inv-hint b { color: #b6f0a8; }
