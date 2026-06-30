@@ -301,10 +301,22 @@ body.is-touch #invClose { padding: 14px 32px; font-size: 16px; }
 .panel {
   text-align: center;
   padding: 40px 56px;
+  max-height: 92dvh;
+  overflow-y: auto;
   background: rgba(15,20,32,.6);
   border: 1px solid rgba(255,255,255,.12);
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(0,0,0,.5);
+}
+/* Touch: the desktop key hints don't apply and make the panel too tall to fit a
+   landscape phone — hide them. */
+body.is-touch .controls { display: none; }
+/* Short (landscape phone) viewports: tighten the menu so it fits. */
+@media (max-height: 520px) {
+  .panel { padding: 22px 40px; }
+  .panel h1 { font-size: 38px; letter-spacing: 5px; }
+  .subtitle { font-size: 12px; }
+  #playBtn { margin: 16px 0 6px; padding: 12px 34px; font-size: 16px; }
 }
 .panel h1 {
   font-size: 56px;
