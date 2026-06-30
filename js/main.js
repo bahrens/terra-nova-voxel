@@ -257,6 +257,11 @@ function playing() {
   if (inventoryOpen) return false;
   return isTouch ? touchPlaying : document.pointerLockElement === canvas;
 }
+// Actually looking at the world (not a menu/inventory, and not the portrait
+// rotate-prompt). Used to decide the status-bar tint.
+function inWorld() {
+  return playing() && !(isTouch && window.innerHeight > window.innerWidth);
+}
 // Single source of truth for what's visible and whether input is live.
 function refreshUI() {
   const p = playing();
@@ -268,7 +273,6 @@ function refreshUI() {
   touchEl.classList.toggle("active", p && isTouch);
   inventoryEl.classList.toggle("active", inventoryOpen);
   menu.classList.toggle("hidden", p || inventoryOpen);
-  if (!p) setTheme("#0b1018"); // dark to match menu/inventory overlays; sky set while playing
 }
 
 playBtn.addEventListener("click", () => {
@@ -512,9 +516,10 @@ function applySky() {
     scene.fog.color.copy(sky.skyColor);
     scene.background.copy(sky.skyColor);
   }
-  // While in the world, tint the status bar to the live sky (refreshUI keeps it
-  // dark on menus/overlays).
-  if (playing()) setTheme("#" + scene.background.getHexString());
+  // Status-bar tint: the live sky only when actually looking at the world; dark
+  // (matching the menu / inventory / rotate overlays) otherwise. Runs every frame
+  // in the loop, so it stays correct across every state.
+  setTheme(inWorld() ? "#" + scene.background.getHexString() : "#0b1018");
 }
 
 function updateDebug() {
