@@ -256,6 +256,7 @@ function playing() {
 function refreshUI() {
   const p = playing();
   player.enabled = p;
+  document.body.classList.toggle("playing", p); // drives the portrait "rotate" hint (CSS)
   crosshair.classList.toggle("active", p);
   hud.classList.toggle("active", p);
   debugEl.classList.toggle("active", p);

@@ -393,6 +393,21 @@ body.is-touch #invClose { padding: 14px 32px; font-size: 16px; }
 }
 button.secondary:hover { background: rgba(255,255,255,.16); transform: none; box-shadow: none; }
 
+/* "Rotate to landscape" — only while playing on a touch device in portrait. */
+#rotate {
+  position: fixed; inset: 0; z-index: 30;
+  display: none;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px; text-align: center; padding: 24px;
+  background: rgba(10, 14, 24, .94);
+}
+@media (orientation: portrait) and (pointer: coarse) {
+  body.playing #rotate { display: flex; }
+}
+.rotate-icon { font-size: 64px; animation: rotateHint 1.8s ease-in-out infinite; }
+@keyframes rotateHint { 0%, 38% { transform: rotate(0); } 60%, 100% { transform: rotate(90deg); } }
+#rotate p { font-size: 18px; letter-spacing: 1px; opacity: .85; }
+
 #loading {
   position: fixed;
   inset: 0;
