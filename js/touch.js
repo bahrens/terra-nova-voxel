@@ -6,7 +6,7 @@
 export function setupTouch(player, opts = {}) {
   const $ = (id) => document.getElementById(id);
   const joy = $("joystick"), knob = $("joyKnob"), look = $("lookpad");
-  const JOY_R = 52, LOOK_SENS = 3.0;
+  const JOY_R = 52, LOOK_SENS = 4.3;
 
   // --- Joystick (analog move) ---
   let joyId = null, cx = 0, cy = 0;
