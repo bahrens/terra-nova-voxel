@@ -246,8 +246,9 @@ body.is-touch #hotbar { pointer-events: auto; touch-action: none; }
    corner stays free for the look thumb. */
 #touchRight {
   position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-  display: flex; flex-direction: column; gap: 14px; align-items: center;
+  display: flex; align-items: center; gap: 12px;
 }
+#touchRight .tcol { display: flex; flex-direction: column; gap: 12px; }
 .tbtn {
   width: 64px; height: 64px; border-radius: 50%;
   background: rgba(0,0,0,.38); border: 2px solid rgba(255,255,255,.22);
@@ -256,6 +257,7 @@ body.is-touch #hotbar { pointer-events: auto; touch-action: none; }
   -webkit-user-select: none; user-select: none;
 }
 .tbtn:active { background: rgba(255,255,255,.22); transform: scale(.94); }
+.tbtn.active { background: rgba(182,240,168,.28); border-color: rgba(182,240,168,.6); }
 #touchTop .tbtn { width: 48px; height: 48px; font-size: 19px; }
 #invClose { display: block; margin: 20px auto 0; }
 

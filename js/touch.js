@@ -64,13 +64,37 @@ export function setupTouch(player, opts = {}) {
     el.addEventListener("pointerdown", (e) => { e.preventDefault(); down(); });
     if (up) { el.addEventListener("pointerup", (e) => { e.preventDefault(); up(); }); el.addEventListener("pointercancel", up); }
   };
-  const btnDown = $("btnDown");
-  if (btnDown) btnDown.style.display = "none"; // only relevant while flying
-  btn("btnJump", () => player.keys.add("Space"), () => player.keys.delete("Space")); // jump / fly up
-  btn("btnDown", () => player.keys.add("KeyC"), () => player.keys.delete("KeyC")); // descend while flying
-  btn("btnFly", () => {
-    player.flying = !player.flying; player.flyFast = false;
-    if (btnDown) btnDown.style.display = player.flying ? "" : "none";
+  const sprintEl = $("btnSprint");
+  const syncSprint = () => {
+    if (sprintEl) sprintEl.classList.toggle("active", player.flying ? player.flyFast : player.sprintToggle);
+  };
+
+  // Up = jump / fly up; double-tap starts flying. Down = crouch / fly down;
+  // double-tap stops flying. (Minecraft-Pocket scheme.)
+  let lastUp = 0, lastDown = 0;
+  const upHold = (down) => () => { if (down) player.keys.add("Space"); else player.keys.delete("Space"); };
+  const downHold = (down) => () => { if (down) player.keys.add("KeyC"); else player.keys.delete("KeyC"); };
+  const upEl = $("btnJump"), downEl = $("btnDown");
+  if (upEl) {
+    upEl.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); upHold(true)();
+      const t = Date.now(); if (t - lastUp < 300 && !player.flying) { player.flying = true; player.flyFast = false; syncSprint(); } lastUp = t;
+    });
+    upEl.addEventListener("pointerup", (e) => { e.preventDefault(); upHold(false)(); });
+    upEl.addEventListener("pointercancel", upHold(false));
+  }
+  if (downEl) {
+    downEl.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); downHold(true)();
+      const t = Date.now(); if (t - lastDown < 300 && player.flying) { player.flying = false; player.flyFast = false; syncSprint(); } lastDown = t;
+    });
+    downEl.addEventListener("pointerup", (e) => { e.preventDefault(); downHold(false)(); });
+    downEl.addEventListener("pointercancel", downHold(false));
+  }
+  // Chevron: ground = run/walk toggle, flying = fast/slow toggle.
+  btn("btnSprint", () => {
+    if (player.flying) player.flyFast = !player.flyFast; else player.sprintToggle = !player.sprintToggle;
+    syncSprint();
   });
   btn("btnInv", () => opts.onInventory && opts.onInventory());
   btn("btnPause", () => opts.onPause && opts.onPause());

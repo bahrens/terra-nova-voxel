@@ -11,6 +11,8 @@ const REACH = 6;
 
 const WALK = 4.3;
 const SPRINT = 7.5;
+const CROUCH = 1.7;
+const CROUCH_EYE = 0.3; // camera drops while crouching
 const FLY = 10;
 const GRAVITY = 28;
 const JUMP = 8.6;
@@ -27,7 +29,8 @@ export class Player {
     this.pitch = 0;
     this.onGround = false;
     this.flying = false;
-    this.flyFast = false;   // toggled by double-tapping W while flying
+    this.flyFast = false;   // toggled by double-tapping W while flying (or the touch chevron)
+    this.sprintToggle = false; // touch chevron: run/walk on the ground
     this.lastWTap = -1e9;
     this.enabled = false;
 
@@ -156,7 +159,8 @@ export class Player {
     wish.addScaledVector(forward, wf).addScaledVector(right, ws);
     if (wish.lengthSq() > 1) wish.normalize();
 
-    const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight");
+    const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight") || this.sprintToggle;
+    const crouching = !this.flying && this.keys.has("KeyC"); // touch down button on the ground
 
     if (this.flying) {
       const speed = FLY * (this.flyFast ? 2.6 : 1);
@@ -168,7 +172,7 @@ export class Player {
       if (sprint || this.keys.has("ControlLeft") || this.keys.has("KeyC")) vy -= speed;
       this.velocity.y = vy;
     } else {
-      const speed = sprint ? SPRINT : WALK;
+      const speed = crouching ? CROUCH : (sprint ? SPRINT : WALK);
       // Snappy horizontal control.
       this.velocity.x = wish.x * speed;
       this.velocity.z = wish.z * speed;
@@ -198,8 +202,9 @@ export class Player {
       this.velocity.set(0, 0, 0);
     }
 
-    // Place camera at the eyes.
-    this.camera.position.set(this.position.x, this.position.y + EYE, this.position.z);
+    // Place camera at the eyes (lowered while crouching).
+    const eye = crouching ? EYE - CROUCH_EYE : EYE;
+    this.camera.position.set(this.position.x, this.position.y + eye, this.position.z);
     this.camera.rotation.order = "YXZ";
     this.camera.rotation.set(this.pitch, this.yaw, 0);
 
