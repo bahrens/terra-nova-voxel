@@ -224,9 +224,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       URL bar. Landscape is the assumed orientation. Build version (branch + SHA +
       time) shown in menu/debug, and a network-first service worker + asset
       `?v=<sha>` cache-busting so deploys aren't served stale on mobile.
-      *Remaining:* mode (`G`) + dev toggles on touch, control-layout tuning,
-      inventory drag, and **touch look acceleration** — a velocity curve (slow
-      drags precise, fast flicks turn more) would beat the current flat multiplier
+      *Increment 3 (button redesign):* break/place are now **world gestures** (hold
+      = break/mine, tap = place, drag = look — the MCPE model), removing those
+      buttons and clearing the look area; the only buttons are a small top cluster
+      (inventory / fly / menu) + a right-edge jump (fly-down shows only while
+      flying). *Remaining:* mode (`G`) + dev toggles on touch, inventory drag,
+      gesture-threshold tuning, and **touch look acceleration** — a velocity curve
+      (slow drags precise, fast flicks turn more) would beat the flat multiplier
       (≈4.3) for touch; mouse stays flat/raw on purpose.
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,

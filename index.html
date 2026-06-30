@@ -38,19 +38,20 @@
   <!-- Profiler overlay (toggle with P) -->
   <div id="profiler"></div>
 
-  <!-- Touch controls (touch devices, while playing) -->
+  <!-- Touch controls (touch devices, while playing). Break/place are world
+       gestures (hold = break, tap = place, drag = look), not buttons. -->
   <div id="touch">
     <div id="lookpad"></div>
     <div id="joystick"><div id="joyKnob"></div></div>
-    <div id="touchBtns">
+    <div id="touchTop">
       <button id="btnInv" class="tbtn" title="Inventory">▦</button>
       <button id="btnFly" class="tbtn" title="Fly">✈</button>
+      <button id="btnPause" class="tbtn" title="Menu">⏸</button>
+    </div>
+    <div id="touchRight">
       <button id="btnDown" class="tbtn" title="Down">⤓</button>
       <button id="btnJump" class="tbtn" title="Jump / Up">⤒</button>
-      <button id="btnBreak" class="tbtn" title="Break">⛏</button>
-      <button id="btnPlace" class="tbtn" title="Place">＋</button>
     </div>
-    <button id="btnPause" class="tbtn tpause" title="Menu">⏸</button>
   </div>
 
   <!-- Transient message (e.g. "Saved") -->

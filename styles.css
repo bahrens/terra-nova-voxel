@@ -240,20 +240,24 @@ body.is-touch #hotbar { pointer-events: auto; touch-action: none; }
   transform: translate(-50%, -50%);
   background: rgba(255,255,255,.28); border: 2px solid rgba(255,255,255,.4);
 }
-#touchBtns {
-  position: absolute; right: 18px; bottom: 22px;
-  display: grid; grid-template-columns: auto auto; gap: 12px; align-items: end;
+/* Small utility cluster, top-right, out of the look area. */
+#touchTop { position: absolute; top: 12px; right: 12px; display: flex; gap: 10px; }
+/* Jump (+ fly-down) on the right edge, vertically centred so the lower-right
+   corner stays free for the look thumb. */
+#touchRight {
+  position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 14px; align-items: center;
 }
 .tbtn {
-  width: 62px; height: 62px; border-radius: 50%;
+  width: 64px; height: 64px; border-radius: 50%;
   background: rgba(0,0,0,.38); border: 2px solid rgba(255,255,255,.22);
   color: #fff; font-size: 24px; line-height: 1;
   display: flex; align-items: center; justify-content: center;
+  -webkit-user-select: none; user-select: none;
 }
 .tbtn:active { background: rgba(255,255,255,.22); transform: scale(.94); }
-.tpause { position: absolute; top: 12px; right: 12px; width: 46px; height: 46px; font-size: 18px; }
+#touchTop .tbtn { width: 48px; height: 48px; font-size: 19px; }
 #invClose { display: block; margin: 20px auto 0; }
-#touch .tbtn { -webkit-user-select: none; user-select: none; }
 
 /* Touch-friendly inventory (esp. short landscape phones): use the screen, scroll
    with momentum, and give recipes/close a bigger tap target. */
