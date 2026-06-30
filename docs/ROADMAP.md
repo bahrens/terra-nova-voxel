@@ -221,8 +221,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       the iOS long-press selection/magnifier (`user-select`/`touch-callout: none`);
       added a **fly-down** button; touch-friendly inventory sizing (`dvh`, momentum
       scroll, bigger tap targets); `dvh` + visualViewport resize for the dynamic
-      URL bar. Landscape is the assumed orientation. *Remaining:* mode (`G`) + dev
-      toggles on touch, control-layout/sensitivity tuning, inventory drag.
+      URL bar. Landscape is the assumed orientation. Build version (branch + SHA +
+      time) shown in menu/debug, and a network-first service worker + asset
+      `?v=<sha>` cache-busting so deploys aren't served stale on mobile.
+      *Remaining:* mode (`G`) + dev toggles on touch, control-layout tuning,
+      inventory drag, and **touch look acceleration** — a velocity curve (slow
+      drags precise, fast flicks turn more) would beat the current flat multiplier
+      (≈4.3) for touch; mouse stays flat/raw on purpose.
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.
