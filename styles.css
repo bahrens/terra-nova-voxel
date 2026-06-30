@@ -138,9 +138,12 @@ body.is-touch #hotbar { pointer-events: auto; touch-action: none; }
   border-radius: 16px;
   box-shadow: 0 24px 60px rgba(0,0,0,.5);
 }
-/* Two columns side by side (Your items + palette | Crafting); stacks when narrow. */
+/* Two columns side by side (Your items + palette | Crafting) — only in creative,
+   where the palette fills a column. Survival is lighter, so a single column.
+   Also stacks to one column when narrow. */
 .inv-cols { display: flex; gap: 22px; align-items: flex-start; }
 .inv-col { flex: 1; min-width: 0; }
+body:not(.creative) .inv-cols { display: block; }
 @media (max-width: 560px) { .inv-cols { display: block; } }
 .inv-panel h2 { font-size: 22px; letter-spacing: 2px; }
 .inv-hint { margin: 6px 0 16px; font-size: 12px; line-height: 1.5; opacity: .6; }

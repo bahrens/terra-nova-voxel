@@ -165,6 +165,7 @@ const invPaletteEl = document.getElementById("invPalette");
 // and refresh held state + hotbar counts.
 function refreshMode() {
   invPaletteEl.style.display = player.creative ? "" : "none";
+  document.body.classList.toggle("creative", player.creative); // two-col inventory only in creative
   applyHeld();
   buildHotbars();
 }
