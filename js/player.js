@@ -13,7 +13,7 @@ const WALK = 4.3;
 const SPRINT = 7.5;
 const CROUCH = 1.7;
 const CROUCH_EYE = 0.3; // camera drops while crouching
-const FLY = 10;
+const FLY = 7.5;
 const GRAVITY = 28;
 const JUMP = 8.6;
 
