@@ -506,7 +506,11 @@ function applySky() {
     scene.fog.color.copy(sky.skyColor);
     scene.background.copy(sky.skyColor);
   }
+  // Tint the mobile status bar to the current sky so there's no contrasting band.
+  const hex = "#" + scene.background.getHexString();
+  if (themeColorEl.content !== hex) themeColorEl.content = hex;
 }
+const themeColorEl = document.getElementById("themeColor");
 
 function updateDebug() {
   if (!player.enabled) return;
