@@ -19,7 +19,7 @@ const RENDER_DISTANCE = 10;
 const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight, false); // false: CSS sizes the (full-bleed) canvas
+renderer.setSize(window.innerWidth, window.innerHeight); // Three sets the canvas's inline px size (robust across mobile)
 renderer.setClearColor(SKY);
 
 const scene = new THREE.Scene();
@@ -324,13 +324,10 @@ if (isTouch) {
 }
 
 function onResize() {
-  // Use the canvas's actual on-screen box (a full-bleed fixed element, incl. the
-  // safe areas) so it fills the screen — no body-background band under the notch.
-  const w = canvas.clientWidth || window.innerWidth;
-  const h = canvas.clientHeight || window.innerHeight;
+  const w = window.innerWidth, h = window.innerHeight;
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(w, h, false); // false: don't override the CSS size
+  renderer.setSize(w, h); // Three owns the canvas display size — guaranteed non-zero box
 }
 window.addEventListener("resize", onResize);
 window.addEventListener("orientationchange", onResize);
@@ -451,6 +448,9 @@ document.addEventListener("keydown", (e) => {
   if (e.code === "KeyL") toggleLightView();
 });
 
+// Profiler must exist before updateOptLabels() runs below (it reads prof.enabled).
+const prof = new Profiler();
+
 // ---- Menu option buttons (so touch can reach the same toggles) ----
 const optModeBtn = document.getElementById("optMode");
 const optDayBtn = document.getElementById("optDay");
@@ -486,7 +486,6 @@ function toast(msg) {
 const clock = new THREE.Clock();
 let fpsAcc = 0, fpsFrames = 0, fps = 0;
 let peakRealMs = 0; // worst real frame time since last copy (captures stutters)
-const prof = new Profiler();
 
 function start() {
   let waterAccum = 0;

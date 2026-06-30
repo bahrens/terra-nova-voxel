@@ -14,7 +14,7 @@ html, body {
   overscroll-behavior: none;
 }
 
-#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+#game { display: block; width: 100dvw; height: 100dvh; touch-action: none; }
 
 /* Underwater tint — a translucent blue wash over the whole view while submerged */
 #underwater {
