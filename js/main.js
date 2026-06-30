@@ -19,7 +19,7 @@ const RENDER_DISTANCE = 10;
 const canvas = document.getElementById("game");
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setSize(window.innerWidth, window.innerHeight, false); // false: CSS sizes the (full-bleed) canvas
 renderer.setClearColor(SKY);
 
 const scene = new THREE.Scene();
@@ -313,12 +313,17 @@ if (isTouch) {
 }
 
 function onResize() {
-  camera.aspect = window.innerWidth / window.innerHeight;
+  // Use the canvas's actual on-screen box (a full-bleed fixed element, incl. the
+  // safe areas) so it fills the screen — no body-background band under the notch.
+  const w = canvas.clientWidth || window.innerWidth;
+  const h = canvas.clientHeight || window.innerHeight;
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(w, h, false); // false: don't override the CSS size
 }
 window.addEventListener("resize", onResize);
 window.addEventListener("orientationchange", onResize);
+onResize(); // match the actual canvas box now
 // iOS shows/hides the URL bar without a resize event — visualViewport catches it.
 if (window.visualViewport) window.visualViewport.addEventListener("resize", onResize);
 
