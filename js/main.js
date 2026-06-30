@@ -453,6 +453,7 @@ document.addEventListener("keydown", (e) => {
 
 // ---- Menu option buttons (so touch can reach the same toggles) ----
 const optModeBtn = document.getElementById("optMode");
+const optDayBtn = document.getElementById("optDay");
 const optSaveBtn = document.getElementById("optSave");
 const optProfilerBtn = document.getElementById("optProfiler");
 const optLightBtn = document.getElementById("optLight");
@@ -463,6 +464,7 @@ function updateOptLabels() {
   if (optLightBtn) optLightBtn.classList.toggle("on", world.materials.debugUniform.value > 0.5);
 }
 if (optModeBtn) optModeBtn.addEventListener("click", toggleMode);
+if (optDayBtn) optDayBtn.addEventListener("click", () => { sky.t = 0.32; toast("Set to morning"); });
 if (optSaveBtn) optSaveBtn.addEventListener("click", () => { if (saveGame() === false) toast("Start the game first"); });
 if (optProfilerBtn) optProfilerBtn.addEventListener("click", toggleProfiler);
 if (optLightBtn) optLightBtn.addEventListener("click", toggleLightView);
