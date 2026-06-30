@@ -105,6 +105,12 @@
 
   <div id="loading">Generating world…</div>
 
+  <script>
+    // Always-fresh on reload (esp. mobile). Harmless if unsupported.
+    if ("serviceWorker" in navigator) {
+      addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
+    }
+  </script>
   <script type="module" src="./js/main.js"></script>
 </body>
 </html>

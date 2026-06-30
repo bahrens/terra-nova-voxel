@@ -28,6 +28,13 @@ jobs:
       - uses: actions/checkout@v4 # checks out the triggering branch by default
       - name: Stamp build version
         run: echo "export const BUILD = \"${GITHUB_REF_NAME} ${GITHUB_SHA:0:7} $(date -u +'%Y-%m-%d %H:%MZ')\";" > js/version.js
+      - name: Cache-bust asset URLs
+        run: |
+          V="${GITHUB_SHA:0:7}"
+          sed -i "s#\"./js/main.js\"#\"./js/main.js?v=$V\"#g" index.html
+          sed -i "s#\"./styles.css\"#\"./styles.css?v=$V\"#g" index.html
+          sed -i "s#\"./vendor/three.module.js\"#\"./vendor/three.module.js?v=$V\"#g" index.html
+          sed -i -E "s#(from \"\./[^\"]+\.js)\"#\1?v=$V\"#g" js/*.js
       - uses: actions/configure-pages@v5
         with:
           enablement: true # auto-enable Pages (build type = GitHub Actions)
