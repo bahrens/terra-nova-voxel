@@ -285,6 +285,8 @@ export class Chunk {
           if (def.liquid) { this.emitWaterCell(buffers.water, view, wx, wy, wz); continue; }
 
           const target = def.transparent ? buffers.foliage : buffers.opaque;
+          // Non-cube shapes (slabs, …) mesh their sub-boxes.
+          if (def.shape) { this.emitShape(target, view, wx, wy, wz, def, id); continue; }
           for (const face of FACES) {
             const neighbor = view.getBlock(wx + face.dir[0], wy + face.dir[1], wz + face.dir[2]);
             // Cull faces hidden by an opaque neighbour, and internal faces between
@@ -387,6 +389,57 @@ export class Chunk {
       buf.indices.push(baseIndex, baseIndex + 1, baseIndex + 2,
                        baseIndex, baseIndex + 2, baseIndex + 3);
     }
+  }
+
+  // Non-cube shapes (slabs, later stairs/fences): emit each sub-box's faces.
+  emitShape(buf, world, wx, wy, wz, def, id) {
+    for (const box of def.shape)
+      for (const face of FACES) this.emitBoxFace(buf, world, wx, wy, wz, face, def, box, id);
+  }
+
+  // One face of a sub-box. Flat-lit (no smooth-lighting/AO — that stays on the
+  // full-cube path); full-tile UVs. A face flush with the voxel edge culls against
+  // an opaque or same-block neighbour; interior faces (e.g. a slab's top) emit.
+  emitBoxFace(buf, world, wx, wy, wz, face, def, box, id) {
+    const [dx, dy, dz] = face.dir;
+    const a = dx !== 0 ? 0 : (dy !== 0 ? 1 : 2); // normal axis
+    const pos = dx + dy + dz > 0;                // facing the +axis side?
+    const boundary = pos ? box[a + 3] === 1 : box[a] === 0;
+    if (boundary) {
+      const nb = world.getBlock(wx + dx, wy + dy, wz + dz);
+      if (isOpaque(nb) || nb === id) return; // hidden by a full/like neighbour
+    }
+    const u = face.u, v = face.v;
+    const uAxis = u[0] ? 0 : (u[1] ? 1 : 2);
+    const vAxis = v[0] ? 0 : (v[1] ? 1 : 2);
+    const na = pos ? box[a + 3] : box[a];
+    const cU = (box[uAxis] + box[uAxis + 3]) / 2, hU = (box[uAxis + 3] - box[uAxis]) / 2;
+    const cV = (box[vAxis] + box[vAxis + 3]) / 2, hV = (box[vAxis + 3] - box[vAxis]) / 2;
+    const C = [0, 0, 0]; C[a] = na; C[uAxis] = cU; C[vAxis] = cV;
+
+    // Flat light of the cell the face opens into: neighbour for edge faces, the
+    // block's own (non-opaque) voxel for interior faces like a slab top.
+    const lx = boundary ? wx + dx : wx, ly = boundary ? wy + dy : wy, lz = boundary ? wz + dz : wz;
+    const sky = world.getSkyLight(lx, ly, lz) / 15;
+    const blk = world.getBlockLight(lx, ly, lz) / 15;
+    const shade = face.light;
+
+    const [u0, v0, u1, v1] = world.atlas.uv(def.faces[face.tile]);
+    const signs = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    const uvC = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+    const base = buf.positions.length / 3;
+    for (let i = 0; i < 4; i++) {
+      const su = signs[i][0], sv = signs[i][1];
+      buf.positions.push(
+        wx + C[0] + su * hU * u[0] + sv * hV * v[0],
+        wy + C[1] + su * hU * u[1] + sv * hV * v[1],
+        wz + C[2] + su * hU * u[2] + sv * hV * v[2],
+      );
+      buf.normals.push(dx, dy, dz);
+      buf.uvs.push(uvC[i][0], uvC[i][1]);
+      buf.colors.push(shade, sky, blk); // flat, no AO
+    }
+    buf.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
   }
 
   // Emit two diagonal billboard quads forming an "X" (grass tufts, flowers).

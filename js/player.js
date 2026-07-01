@@ -1,7 +1,7 @@
 // Player: first-person controls, AABB voxel collision, gravity/flight, and
 // DDA voxel raycasting for breaking and placing blocks.
 import * as THREE from "three";
-import { isSolid, blockHardness, blockTool, blockMinTier } from "./blocks.js";
+import { isSolid, blockHardness, blockTool, blockMinTier, BLOCKS } from "./blocks.js";
 import { BLOCK } from "./blocks.js";
 import { raycastVoxels } from "./raycast.js";
 
@@ -214,7 +214,7 @@ export class Player {
     this.mining.progress += hardness > 0 ? (dt * speed) / hardness : 1;
 
     this.crack.visible = true;
-    this.crack.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+    this._fitBox(this.crack, hit);
     this.crack.material.opacity = 0.15 + 0.55 * Math.min(1, this.mining.progress);
 
     if (this.mining.progress >= 1) {
@@ -263,10 +263,23 @@ export class Player {
     const minX = Math.floor(x - HALF_WIDTH), maxX = Math.floor(x + HALF_WIDTH);
     const minY = Math.floor(y), maxY = Math.floor(y + HEIGHT - 1e-4);
     const minZ = Math.floor(z - HALF_WIDTH), maxZ = Math.floor(z + HALF_WIDTH);
+    const ax0 = x - HALF_WIDTH, ax1 = x + HALF_WIDTH;
+    const ay0 = y, ay1 = y + HEIGHT;
+    const az0 = z - HALF_WIDTH, az1 = z + HALF_WIDTH;
     for (let by = minY; by <= maxY; by++)
       for (let bz = minZ; bz <= maxZ; bz++)
-        for (let bx = minX; bx <= maxX; bx++)
-          if (isSolid(this.world.getBlock(bx, by, bz))) return true;
+        for (let bx = minX; bx <= maxX; bx++) {
+          const id = this.world.getBlock(bx, by, bz);
+          if (!isSolid(id)) continue;
+          const shape = BLOCKS[id]?.shape;
+          if (!shape) return true; // full cube — the voxel overlap already collides
+          // Shaped block: only collide if the AABB overlaps one of its sub-boxes.
+          for (const b of shape) {
+            if (ax1 > bx + b[0] && ax0 < bx + b[3] &&
+                ay1 > by + b[1] && ay0 < by + b[4] &&
+                az1 > bz + b[2] && az0 < bz + b[5]) return true;
+          }
+        }
     return false;
   }
 
@@ -281,7 +294,25 @@ export class Player {
     const hit = this.raycast();
     if (!hit) { this.highlight.visible = false; return; }
     this.highlight.visible = true;
-    this.highlight.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+    this._fitBox(this.highlight, hit);
+  }
+
+  // Scale/position a unit-cube overlay (highlight or crack) to a block's shape —
+  // its bounding box for shaped blocks, the full voxel otherwise.
+  _fitBox(obj, hit) {
+    const shape = BLOCKS[hit.block]?.shape;
+    if (shape) {
+      let x0 = 1, y0 = 1, z0 = 1, x1 = 0, y1 = 0, z1 = 0;
+      for (const b of shape) {
+        x0 = Math.min(x0, b[0]); y0 = Math.min(y0, b[1]); z0 = Math.min(z0, b[2]);
+        x1 = Math.max(x1, b[3]); y1 = Math.max(y1, b[4]); z1 = Math.max(z1, b[5]);
+      }
+      obj.scale.set(x1 - x0, y1 - y0, z1 - z0);
+      obj.position.set(hit.x + (x0 + x1) / 2, hit.y + (y0 + y1) / 2, hit.z + (z0 + z1) / 2);
+    } else {
+      obj.scale.set(1, 1, 1);
+      obj.position.set(hit.x + 0.5, hit.y + 0.5, hit.z + 0.5);
+    }
   }
 
   breakBlock(harvest = true) {
@@ -295,6 +326,14 @@ export class Player {
   placeBlock() {
     const hit = this.raycast();
     if (!hit || !this.placeId) return;
+    // Placing a slab onto a matching slab from above merges them into a full block
+    // (so it sits flush instead of leaving a half-block gap in the cell above).
+    const placeDef = BLOCKS[this.placeId];
+    if (placeDef?.full && hit.normal.y > 0 && this.world.getBlock(hit.x, hit.y, hit.z) === this.placeId) {
+      this.world.setBlock(hit.x, hit.y, hit.z, placeDef.full);
+      if (this.onPlace) this.onPlace();
+      return;
+    }
     const px = hit.x + hit.normal.x;
     const py = hit.y + hit.normal.y;
     const pz = hit.z + hit.normal.z;

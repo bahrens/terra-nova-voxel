@@ -197,9 +197,18 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 3 — World & physics depth
 
-- [ ] **Non-cube block shapes** — slabs, stairs, fences, attached torches. The
-      mesher only knows full cubes + cross-quads today; this needs a block-shape/
-      model abstraction settled before pluggability.
+- [~] **Non-cube block shapes** — slabs, stairs, fences, attached torches.
+      *Increment 1 done — slabs:* blocks can declare a `shape` = list of sub-boxes
+      ([x0,y0,z0,x1,y1,z1] in 0..1); the mesher emits box faces (flat-lit path,
+      full cubes untouched), collision tests the boxes, and the DDA raycast is
+      sub-voxel (correct targeting/normals). Added a `STONE_SLAB` (auto item/drop);
+      placing a slab on a matching slab doubles it to a full block; highlight/crack
+      overlays fit the shape. *Next:* **stairs (Increment 2)** — a 2-box shape that
+      forces the **orientation/metadata** decision (the voxel `Uint8Array` has no
+      room for a facing; need a parallel meta layer / packed bits / per-facing ids).
+      Then fences + **attached wall-torches** (the torch motivation). Still
+      simplified: shaped blocks are non-opaque for light (no partial shadow); slab
+      inventory icon is a full-cube; a doubled slab drops cobble, not 2 slabs.
 - [ ] **Block physics** — gravity-affected blocks (falling sand/gravel).
 - [ ] **Plant placement & growth rules** — data-driven properties for what each
       plant can grow/be placed on (valid ground block types) and which biomes it

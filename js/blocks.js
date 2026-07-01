@@ -4,6 +4,9 @@
 // Render types:
 //   "cube"  (default) — a normal full voxel cube.
 //   "cross" — two diagonal billboard quads (grass tufts, flowers, bushes).
+//   shape   — optional list of sub-boxes [x0,y0,z0,x1,y1,z1] in 0..1 voxel space
+//             for non-cube blocks (slabs, later stairs/fences). Drives the mesher
+//             and collision; such blocks are non-opaque so light flows around them.
 
 export const AIR = 0;
 
@@ -38,6 +41,8 @@ export const BLOCK = {
   DEAD_BUSH: 24,
   // light sources
   TORCH: 25,
+  // non-cube shapes
+  STONE_SLAB: 26,
 };
 
 // Per-block definitions.
@@ -79,6 +84,10 @@ export const BLOCKS = {
   [BLOCK.DEAD_BUSH]:     { name: "Dead Bush",     tiles: { all: "dead_bush" },     ...PLANT },
 
   [BLOCK.TORCH]:         { name: "Torch",         tiles: { all: "torch" },         ...PLANT, light: 14 },
+
+  // Half-height bottom slab. Non-opaque so light flows around it (no hard shadow).
+  // `full` = the block it becomes when a second slab is placed on top (doubled).
+  [BLOCK.STONE_SLAB]:    { name: "Stone Slab",    tiles: { all: "stone" }, opaque: false, shape: [[0, 0, 0, 1, 0.5, 1]], full: BLOCK.STONE },
 };
 
 // Fill in defaults.
@@ -90,6 +99,7 @@ for (const id in BLOCKS) {
   if (b.render === undefined) b.render = "cube";
   if (b.needsSupport === undefined) b.needsSupport = false;
   if (b.light === undefined) b.light = 0;
+  if (b.shape === undefined) b.shape = null; // null = full cube
   const t = b.tiles;
   b.faces = {
     top: t.top || t.side || t.all,
@@ -135,7 +145,7 @@ const HARDNESS = {
   [BLOCK.DIRT]: 0.6, [BLOCK.SAND]: 0.6, [BLOCK.RED_SAND]: 0.6, [BLOCK.GRASS]: 0.7,
   [BLOCK.GRAVEL]: 0.8, [BLOCK.ICE]: 0.6,
   [BLOCK.LOG]: 2.0, [BLOCK.PLANK]: 2.0, [BLOCK.SANDSTONE]: 1.8,
-  [BLOCK.STONE]: 3.5, [BLOCK.COBBLE]: 3.5,
+  [BLOCK.STONE]: 3.5, [BLOCK.COBBLE]: 3.5, [BLOCK.STONE_SLAB]: 2.5,
   [BLOCK.COAL_ORE]: 4.0, [BLOCK.IRON_ORE]: 4.5, [BLOCK.GOLD_ORE]: 4.5,
   [BLOCK.BEDROCK]: Infinity,
 };
@@ -149,7 +159,7 @@ export function blockHardness(id) {
 // The tool type that mines a block fastest (and, for gated blocks, is required
 // to harvest it). null = no preferred tool (hands are fine).
 const BLOCK_TOOL = {
-  [BLOCK.STONE]: "pickaxe", [BLOCK.COBBLE]: "pickaxe", [BLOCK.SANDSTONE]: "pickaxe",
+  [BLOCK.STONE]: "pickaxe", [BLOCK.COBBLE]: "pickaxe", [BLOCK.SANDSTONE]: "pickaxe", [BLOCK.STONE_SLAB]: "pickaxe",
   [BLOCK.COAL_ORE]: "pickaxe", [BLOCK.IRON_ORE]: "pickaxe", [BLOCK.GOLD_ORE]: "pickaxe", [BLOCK.ICE]: "pickaxe",
   [BLOCK.LOG]: "axe", [BLOCK.PLANK]: "axe",
   [BLOCK.DIRT]: "shovel", [BLOCK.GRASS]: "shovel", [BLOCK.SAND]: "shovel",
@@ -159,7 +169,7 @@ const BLOCK_TOOL = {
 // 0 = harvestable by hand. Mining a gated block with too weak/wrong a tool still
 // breaks it but yields nothing.
 const BLOCK_MIN_TIER = {
-  [BLOCK.STONE]: 1, [BLOCK.COBBLE]: 1, [BLOCK.SANDSTONE]: 1, [BLOCK.COAL_ORE]: 1,
+  [BLOCK.STONE]: 1, [BLOCK.COBBLE]: 1, [BLOCK.SANDSTONE]: 1, [BLOCK.COAL_ORE]: 1, [BLOCK.STONE_SLAB]: 1,
   [BLOCK.IRON_ORE]: 2, [BLOCK.GOLD_ORE]: 3,
 };
 export function blockTool(id) { return BLOCK_TOOL[id] ?? null; }
