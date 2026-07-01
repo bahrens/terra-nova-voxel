@@ -236,6 +236,12 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       Advanced group for profiler / light view / spawn critter) so touch can reach
       them. *Remaining:* inventory drag, gesture-threshold + crouch edge-protection,
       and **touch look acceleration** (velocity curve) — mouse stays flat/raw.
+- [ ] **Selectable touch control schemes** — Minecraft Bedrock offers several
+      touch control styles; we want to add a few and let players pick one in
+      settings. Candidates: tap-to-break/place "classic" vs the current
+      hold=break/tap=place gestures; joystick vs D-pad movement; split-touch look.
+      Needs `js/touch.js` made config-driven so a scheme is selectable rather than
+      hard-coded. (Requested 2026-06.)
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.

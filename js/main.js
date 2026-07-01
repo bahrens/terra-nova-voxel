@@ -9,6 +9,7 @@ import { BLOCKS, BLOCK } from "./blocks.js";
 import { dropForBlock } from "./items.js";
 import { EntityManager } from "./entity.js";
 import { Inventory } from "./inventory.js";
+import { SaveManager } from "./save.js";
 import { Profiler } from "./profiler.js";
 import { setupTouch } from "./touch.js";
 import { BUILD } from "./version.js";
@@ -35,18 +36,29 @@ const UNDERWATER_COLOR = new THREE.Color(0x2a5f9e);
 const camera = new THREE.PerspectiveCamera(
   72, window.innerWidth / window.innerHeight, 0.1, (RENDER_DISTANCE + 2) * CHUNK_SIZE);
 
-// ---- Saved game (localStorage): seed + player edits + position + time ----
-const SAVE_KEY = "terra-nova-save";
-const DEFAULT_SEED = 24601;
-function loadSave() {
-  try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; }
-  catch { return null; }
-}
-const saved = loadSave();
-const seed = saved?.seed ?? DEFAULT_SEED;
+// ---- Saved game (localStorage) ----
+// `started` gates saving, inventory, and input until the spawn area is primed.
+// The snapshot to persist is assembled in collect() from the live game objects.
+let started = false;
+const save = new SaveManager({
+  collect: () => ({
+    version: 1,
+    seed,
+    player: {
+      x: player.position.x, y: player.position.y, z: player.position.z,
+      yaw: player.yaw, pitch: player.pitch, flying: player.flying,
+    },
+    sky: { t: sky.t },
+    hotbar: ui.serialize(),
+    edits: world.serializeEdits(),
+  }),
+  canSave: () => started,
+  toast,
+});
+const seed = save.seed;
 
 const world = new World(scene, { seed, renderDistance: RENDER_DISTANCE });
-if (saved?.edits) world.loadEditsData(saved.edits);
+if (save.data?.edits) world.loadEditsData(save.data.edits);
 const player = new Player(camera, world, scene);
 const entities = new EntityManager(scene, world, world.atlas);
 // Breaking a block drops the block's item (stone->cobble, ore->material, etc.),
@@ -55,10 +67,10 @@ player.onBreak = (x, y, z, id, harvest) => {
   if (harvest) entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, dropForBlock(id));
 };
 const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
-if (saved?.sky?.t != null) sky.t = saved.sky.t;
+if (save.data?.sky?.t != null) sky.t = save.data.sky.t;
 
 // ---- Inventory / hotbar / crafting (HUD + panel) — owns its state; see inventory.js ----
-const ui = new Inventory({ player, world, toast, savedHotbar: saved?.hotbar });
+const ui = new Inventory({ player, world, toast, savedHotbar: save.data?.hotbar });
 player.onSelect = (arg, isIndex) => ui.select(arg, isIndex);
 // Survival: placing consumes one of the held item; pickups add to the store.
 player.onPlace = () => ui.consumeOnPlace();
@@ -120,7 +132,7 @@ playBtn.addEventListener("click", () => {
 });
 const newWorldBtn = document.getElementById("newWorldBtn");
 if (newWorldBtn) newWorldBtn.addEventListener("click", () => {
-  if (confirm("Start a new world? This deletes your saved world.")) newWorld();
+  if (confirm("Start a new world? This deletes your saved world.")) save.newWorld();
 });
 
 function openInventory() {
@@ -169,8 +181,8 @@ if (window.visualViewport) window.visualViewport.addEventListener("resize", onRe
 // ---- Prime the spawn area, then start ----
 const loadingEl = document.getElementById("loading");
 // Prime around the saved position if we have one, else the default spawn.
-const spawn = saved?.player
-  ? new THREE.Vector3(saved.player.x, saved.player.y, saved.player.z)
+const spawn = save.data?.player
+  ? new THREE.Vector3(save.data.player.x, save.data.player.y, save.data.player.z)
   : new THREE.Vector3(8, 70, 8);
 
 function prime() {
@@ -182,8 +194,8 @@ function prime() {
     const ready = world.isReady(spawn) && world.meshQueue.length === 0 && frames > 6;
     renderer.render(scene, camera);
     if (ready) {
-      if (saved?.player) {
-        const p = saved.player;
+      if (save.data?.player) {
+        const p = save.data.player;
         player.position.set(p.x, p.y, p.z);
         player.yaw = p.yaw ?? 0;
         player.pitch = p.pitch ?? 0;
@@ -202,48 +214,8 @@ function prime() {
   requestAnimationFrame(tick);
 }
 
-// ---- Save game ----
-let started = false;
-let wiping = false; // true while discarding the world for "New World"
-function saveGame() {
-  if (!started || wiping) return false;
-  const data = {
-    version: 1,
-    seed,
-    player: {
-      x: player.position.x, y: player.position.y, z: player.position.z,
-      yaw: player.yaw, pitch: player.pitch, flying: player.flying,
-    },
-    sky: { t: sky.t },
-    hotbar: ui.serialize(),
-    edits: world.serializeEdits(),
-  };
-  try {
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    toast("Saved");
-    return true;
-  } catch (e) {
-    toast("Save failed (storage full?)");
-    return false;
-  }
-}
-function newWorld() {
-  // Block the pagehide/beforeunload auto-save below from rewriting the world
-  // we're discarding, then seed a fresh random world for the reload to load.
-  wiping = true;
-  try {
-    const freshSeed = (Math.random() * 0x7fffffff) >>> 0;
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ version: 1, seed: freshSeed }));
-  } catch {
-    try { localStorage.removeItem(SAVE_KEY); } catch {}
-  }
-  location.reload();
-}
-
-// Auto-save periodically and when the tab is hidden/closed.
-setInterval(() => { if (started) saveGame(); }, 15000);
-window.addEventListener("pagehide", () => saveGame());
-window.addEventListener("beforeunload", () => saveGame());
+// Auto-save periodically and when the tab is hidden/closed (see save.js).
+save.startAutosave();
 // ---- Toggle actions (shared by keyboard shortcuts and the menu buttons) ----
 function toggleMode() {
   player.creative = !player.creative;
@@ -269,7 +241,7 @@ function spawnMobAhead() {
 
 document.addEventListener("keydown", (e) => {
   if (!started) return;
-  if (e.code === "KeyK") saveGame();
+  if (e.code === "KeyK") save.save();
   if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
   if (e.code === "Escape" && inventoryOpen) closeInventory();
   if (e.code === "KeyG") toggleMode();          // creative <-> survival
@@ -298,7 +270,7 @@ function updateOptLabels() {
 if (optModeBtn) optModeBtn.addEventListener("click", toggleMode);
 if (optDayBtn) optDayBtn.addEventListener("click", () => { sky.t = 0.32; toast("Set to morning"); });
 if (optNightBtn) optNightBtn.addEventListener("click", () => { sky.t = 0; toast("Set to midnight"); });
-if (optSaveBtn) optSaveBtn.addEventListener("click", () => { if (saveGame() === false) toast("Start the game first"); });
+if (optSaveBtn) optSaveBtn.addEventListener("click", () => { if (save.save() === false) toast("Start the game first"); });
 if (optProfilerBtn) optProfilerBtn.addEventListener("click", toggleProfiler);
 if (optLightBtn) optLightBtn.addEventListener("click", toggleLightView);
 if (optMobBtn) optMobBtn.addEventListener("click", spawnMobAhead);

@@ -17,12 +17,14 @@ A snapshot of how the base game is built today. This is the surface the future
 index.html        entry + import map (points at vendored Three.js)
 styles.css        HUD, menu, crosshair, hotbar, inventory, touch, underwater overlay
 js/
-  main.js         entry: renderer, main loop, play/menu state machine, save/load, fog
+  main.js         entry: renderer, main loop, play/menu state machine, fog
   inventory.js    hotbar + creative palette + survival store + crafting (HUD + panel)
+  save.js         localStorage persistence: load/save/newWorld/autosave (game injects the snapshot)
   world.js        chunk streaming, terrain/biome/cave gen, water sim, light orchestration, edit diffs
   chunk.js        voxel storage + per-block light (BFS) + mesher (face cull, AO, water heights)
   light.js        pure sky/block light propagation (accessor-driven; shared by chunk + world)
-  player.js       FPS controls, AABB collision, DDA raycast, mining/placement, input
+  raycast.js      Amanatides & Woo voxel DDA (shared block-targeting util)
+  player.js       FPS controls, AABB collision, mining/placement, input
   blocks.js       block registry (data-driven) + helpers (isSolid/isOpaque/…)
   items.js        item/tool registry, block<->item mapping, drop tables
   recipes.js      crafting recipe registry + canCraft()
@@ -125,10 +127,11 @@ build a second variant.
 - **Tier 1 — soon, cheap, kills active fragility:**
   - ✅ `inventory.js` — hotbar/palette/store/crafting extracted from `main.js`
     behind a single internal `changed()` path (replaces the scattered refreshers).
-  - ☐ `SaveManager` — pull localStorage save/load out of `main.js`; a natural
-    place for a game to declare what it serializes.
-  - ☐ `raycast` — extract the DDA voxel traversal from `player.js` into a reusable
-    util.
+  - ✅ `save.js` (`SaveManager`) — localStorage load/save/newWorld/autosave out of
+    `main.js`; the game injects `collect()`/`canSave()`, so *what* a save holds
+    stays the game's concern.
+  - ✅ `raycast.js` (`raycastVoxels`) — DDA voxel traversal pulled out of
+    `player.js` into a reusable, world-agnostic util.
 - **Tier 2 — when it next bites:**
   - ☐ Unify input (`player.js` listeners + `main.js` keydown + `touch.js`) into one
     input layer.

@@ -3,6 +3,7 @@
 import * as THREE from "three";
 import { isSolid, blockHardness, blockTool, blockMinTier } from "./blocks.js";
 import { BLOCK } from "./blocks.js";
+import { raycastVoxels } from "./raycast.js";
 
 const HALF_WIDTH = 0.3;
 const HEIGHT = 1.8;
@@ -288,35 +289,9 @@ export class Player {
 
   // ---- Block interaction ----
   raycast() {
-    const origin = this.camera.position.clone();
-    const dir = this.forwardVector(true);
-    // Amanatides & Woo voxel traversal.
-    let x = Math.floor(origin.x), y = Math.floor(origin.y), z = Math.floor(origin.z);
-    const stepX = Math.sign(dir.x), stepY = Math.sign(dir.y), stepZ = Math.sign(dir.z);
-    const tDeltaX = dir.x !== 0 ? Math.abs(1 / dir.x) : Infinity;
-    const tDeltaY = dir.y !== 0 ? Math.abs(1 / dir.y) : Infinity;
-    const tDeltaZ = dir.z !== 0 ? Math.abs(1 / dir.z) : Infinity;
-    const boundary = (s, o, c) => s > 0 ? (c + 1 - o) : (o - c);
-    let tMaxX = dir.x !== 0 ? boundary(stepX, origin.x, x) * tDeltaX : Infinity;
-    let tMaxY = dir.y !== 0 ? boundary(stepY, origin.y, y) * tDeltaY : Infinity;
-    let tMaxZ = dir.z !== 0 ? boundary(stepZ, origin.z, z) * tDeltaZ : Infinity;
-
-    let nx = 0, ny = 0, nz = 0;
-    let t = 0;
-    while (t <= REACH) {
-      const block = this.world.getBlock(x, y, z);
-      if (isSolid(block)) {
-        return { x, y, z, normal: { x: nx, y: ny, z: nz }, block };
-      }
-      if (tMaxX < tMaxY && tMaxX < tMaxZ) {
-        x += stepX; t = tMaxX; tMaxX += tDeltaX; nx = -stepX; ny = 0; nz = 0;
-      } else if (tMaxY < tMaxZ) {
-        y += stepY; t = tMaxY; tMaxY += tDeltaY; nx = 0; ny = -stepY; nz = 0;
-      } else {
-        z += stepZ; t = tMaxZ; tMaxZ += tDeltaZ; nx = 0; ny = 0; nz = -stepZ;
-      }
-    }
-    return null;
+    return raycastVoxels(
+      (x, y, z) => this.world.getBlock(x, y, z),
+      this.camera.position, this.forwardVector(true), REACH);
   }
 
   updateHighlight() {
