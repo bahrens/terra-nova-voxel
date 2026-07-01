@@ -97,8 +97,26 @@
       </details>
 
       <p class="saveinfo">Your world auto-saves to this browser.</p>
-      <button id="newWorldBtn" class="secondary">New World</button>
+      <button id="worldsBtn" class="secondary">Worlds…</button>
       <p class="buildinfo" id="buildInfo"></p>
+    </div>
+  </div>
+
+  <!-- Worlds: list / load / delete + create a new world -->
+  <div id="worlds">
+    <div class="worlds-panel">
+      <button id="worldsCloseX" class="inv-x" aria-label="Close" title="Close">✕</button>
+      <div class="inv-head">
+        <h2>Worlds</h2>
+        <p class="inv-hint">Load or delete a saved world, or create a new one. Each world is stored in this browser.</p>
+      </div>
+      <div id="worldList" class="world-list"></div>
+      <div class="world-create">
+        <div class="inv-sub">New world</div>
+        <input id="worldName" class="w-input" type="text" placeholder="Name (optional)" maxlength="24" autocomplete="off" />
+        <input id="worldSeed" class="w-input" type="text" placeholder="Seed (blank = random)" maxlength="24" autocomplete="off" />
+        <button id="worldCreate" class="secondary">Create world</button>
+      </div>
     </div>
   </div>
 

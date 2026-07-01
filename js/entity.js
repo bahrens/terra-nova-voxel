@@ -262,6 +262,21 @@ export class EntityManager {
     return e;
   }
 
+  // Persist / restore dropped items so they survive a reload (mobs aren't saved —
+  // they respawn). Age is kept so a restored drop keeps counting toward its TTL.
+  serializeItems() {
+    return this.list
+      .filter((e) => e.itemId != null)
+      .map((e) => ({ x: e.position.x, y: e.position.y, z: e.position.z, item: e.itemId, age: Math.round(e.age || 0) }));
+  }
+  loadItems(arr) {
+    if (!Array.isArray(arr)) return;
+    for (const d of arr) {
+      const e = this.spawnItem(d.x, d.y, d.z, d.item);
+      if (e) { e.velocity.set(0, 0, 0); e.age = d.age || 0; } // land in place, don't pop
+    }
+  }
+
   // Topmost solid block with 2 air above (standing room) over sea level, or null
   // if the column isn't loaded / has no surface.
   findSurface(wx, wz) {

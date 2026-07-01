@@ -19,7 +19,8 @@ styles.css        HUD, menu, crosshair, hotbar, inventory, touch, underwater ove
 js/
   main.js         entry: renderer, main loop, play/menu state machine, fog
   inventory.js    hotbar + creative palette + survival store + crafting (HUD + panel)
-  save.js         localStorage persistence: load/save/newWorld/autosave (game injects the snapshot)
+  save.js         persistence: multiple named worlds (index + per-world localStorage slots), autosave
+  worlds-ui.js    world-select screen: list / load / delete worlds + create (name + seed)
   world.js        chunk streaming, terrain/biome/cave gen, water sim, light orchestration, edit diffs
   chunk.js        voxel storage + per-block light (BFS) + mesher (face cull, AO, water heights)
   light.js        pure sky/block light propagation (accessor-driven; shared by chunk + world)

@@ -6,10 +6,11 @@ import { BLOCKS } from "./blocks.js";
 import { CHUNK_SIZE } from "./chunk.js";
 
 export class Overlays {
-  constructor({ player, world, entities, sky, prof, renderer, build, toast }) {
+  constructor({ player, world, entities, sky, prof, renderer, build, seed, worldName, toast }) {
     this.player = player; this.world = world; this.entities = entities;
     this.sky = sky; this.prof = prof; this.renderer = renderer;
-    this.build = build; this.toast = toast || (() => {});
+    this.build = build; this.seed = seed; this.worldName = worldName;
+    this.toast = toast || (() => {});
     this.debugEl = document.getElementById("debug");
     this.profilerEl = document.getElementById("profiler");
   }
@@ -29,6 +30,7 @@ export class Overlays {
     const clock24 = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
     this.debugEl.textContent =
       `Terra Nova  build ${this.build}\n` +
+      `world "${this.worldName}"  seed ${this.seed}\n` +
       `xyz  ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}\n` +
       `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${this.world.chunks.size}   ents ${this.entities.list.length}\n` +
       `fps  ${fps}   ${this.player.flying ? (this.player.flyFast ? "FLY·fast" : "FLY") : (this.player.onGround ? "ground" : "air")}\n` +

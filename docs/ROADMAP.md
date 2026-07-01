@@ -110,9 +110,9 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       `EntityManager` that ticks the list and manages meshes. First concrete type
       is `ItemEntity` — breaking a block drops a small spinning cube that falls,
       settles, and is vacuumed to the player when near (proves the framework and
-      seeds the mining→drops→inventory chain). *Known gaps / next:* drops aren't
-      persisted in saves yet (transient); item cubes render full-bright (no world
-      light) and use the side tile on all faces (plants look like cubes); pickup
+      seeds the mining→drops→inventory chain). *Known gaps / next:* item cubes render
+      full-bright (no world light) and use the side tile on all faces (plants look
+      like cubes); pickup
       just despawns (no inventory counts until survival). Player isn't refactored
       onto `Entity` yet — its physics is mirrored; unifying is a later cleanup.
 - [~] **Items as a first-class concept, distinct from blocks** — *increment 1 done
@@ -245,9 +245,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.
-- [ ] **World management (multiple worlds + select/create/delete)** — today it's
-      one hardcoded `localStorage` slot (`terra-nova-save`). Build proper world
-      management (requested 2026-07):
+- [x] **World management (multiple worlds + select/create/delete)** *(done)* —
+      `SaveManager` now keys each world under `terra-nova-world:<id>` with an index
+      (`terra-nova-worlds`), migrating the old single slot into "World" #1. A
+      **Worlds…** menu screen (`worlds-ui.js`) lists worlds (load / delete, current
+      marked) and creates new ones with an optional name + seed (blank = random,
+      words hashed). Switching reloads into the chosen world; the seed shows in the
+      debug overlay. Original intent below:
       - **World list / select screen** — show previously-created worlds, pick one
         to load. Each world is its own save entry (e.g. `terra-nova-world:<id>`),
         with a small index of `{ id, name, seed, lastPlayed }`.

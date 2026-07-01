@@ -13,6 +13,7 @@ import { SaveManager } from "./save.js";
 import { Overlays } from "./overlays.js";
 import { Profiler } from "./profiler.js";
 import { setupTouch } from "./touch.js";
+import { setupWorldsUI } from "./worlds-ui.js";
 import { setupKeyboardMouse } from "./keyboard-mouse.js";
 import { BUILD } from "./version.js";
 
@@ -52,6 +53,7 @@ const save = new SaveManager({
     },
     sky: { t: sky.t },
     hotbar: ui.serialize(),
+    drops: entities.serializeItems(),
     edits: world.serializeEdits(),
   }),
   canSave: () => started,
@@ -132,10 +134,7 @@ playBtn.addEventListener("click", () => {
   }
   else canvas.requestPointerLock();
 });
-const newWorldBtn = document.getElementById("newWorldBtn");
-if (newWorldBtn) newWorldBtn.addEventListener("click", () => {
-  if (confirm("Start a new world? This deletes your saved world.")) save.newWorld();
-});
+setupWorldsUI(save); // the "Worlds…" menu button opens the world list / create screen
 
 function openInventory() {
   if (!started || inventoryOpen) return;
@@ -222,6 +221,7 @@ function prime() {
       } else {
         player.spawnAt(8, 8);
       }
+      entities.loadItems(save.data?.drops); // restore dropped items for this world
       loadingEl.classList.remove("active");
       started = true;
       start();
@@ -260,7 +260,7 @@ function spawnMobAhead() {
 // Profiler must exist before updateOptLabels() runs below (it reads prof.enabled).
 const prof = new Profiler();
 // Debug + profiler HUD dashboards (see overlays.js).
-const overlays = new Overlays({ player, world, entities, sky, prof, renderer, build: BUILD, toast });
+const overlays = new Overlays({ player, world, entities, sky, prof, renderer, build: BUILD, seed: save.seed, worldName: save.currentName, toast });
 
 // ---- Menu option buttons (so touch can reach the same toggles) ----
 const optModeBtn = document.getElementById("optMode");
