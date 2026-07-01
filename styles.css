@@ -286,7 +286,7 @@ body:not(.creative) .inv-cols { display: block; }
   user-select: text; -webkit-user-select: text; /* body disables selection */
 }
 .w-input:focus { border-color: rgba(182,240,168,.5); }
-body.is-touch .worlds-panel { width: 90vw; max-height: 92dvh; padding: 12px 16px 14px; }
+body.is-touch .worlds-panel { width: 86vw; max-height: 92dvh; padding: 12px 16px 14px; }
 
 /* Debug */
 #debug {
@@ -366,7 +366,7 @@ body.is-touch .worlds-panel { width: 90vw; max-height: 92dvh; padding: 12px 16px
 /* Touch-friendly inventory (esp. short landscape phones): use the screen, scroll
    with momentum, and give recipes/close a bigger tap target. */
 body.is-touch .inv-panel {
-  width: 90vw; max-height: 92dvh;
+  width: 86vw; max-height: 92dvh;
   padding: 12px 16px 14px;
 }
 body.is-touch .inv-body { -webkit-overflow-scrolling: touch; }
