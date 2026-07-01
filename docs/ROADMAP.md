@@ -245,12 +245,20 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 - [ ] **Audio** — there is currently **zero sound**. Block break/place, footsteps,
       ambient, mob sounds, music. Its own system/seam.
-- [ ] **Multiple worlds + world-select UI** — today it's one hardcoded
-      `localStorage` slot. Need a world list, create/delete, naming.
-- [ ] **Seed input on world creation** — let the player type a seed for a
-      reproducible world (and show the current world's seed). Today "New World"
-      picks a random seed with no way to choose or view it. Pairs with the
-      world-select UI above.
+- [ ] **World management (multiple worlds + select/create/delete)** — today it's
+      one hardcoded `localStorage` slot (`terra-nova-save`). Build proper world
+      management (requested 2026-07):
+      - **World list / select screen** — show previously-created worlds, pick one
+        to load. Each world is its own save entry (e.g. `terra-nova-world:<id>`),
+        with a small index of `{ id, name, seed, lastPlayed }`.
+      - **Create world** — makes a new world with a **fresh random seed** by
+        default, with an **optional seed input** so the player can type their own
+        for a reproducible world. Optional name.
+      - **Delete world** — remove a world (with confirm).
+      - Show the current world's seed somewhere (debug overlay / world info).
+      - `save.js` already isolates persistence behind `SaveManager` — this is
+        mostly extending it to keyed slots + an index, plus the select/create UI.
+        Supersedes the "multiple named save slots?" open question in Save state.
 - [ ] **Settings menu** — render distance, mouse sensitivity, volume, FOV.
 - [ ] **UI surfaces** — inventory screen, death/respawn screen, pause polish.
 
