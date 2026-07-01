@@ -2,6 +2,7 @@
 // and exposes getBlock / setBlock used by the player and the mesher.
 import * as THREE from "three";
 import { Chunk, CHUNK_SIZE, WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
+import { meshChunk } from "./mesher.js";
 import { Noise } from "./noise.js";
 import { BLOCK, BLOCKS, AIR, isSolid, isOpaque, needsSupport } from "./blocks.js";
 import { pickBiome } from "./biomes.js";
@@ -692,7 +693,7 @@ export class World {
 
   // ---- Meshing ----
   buildChunkMesh(chunk) {
-    const geom = chunk.buildGeometry(this);
+    const geom = meshChunk(chunk, this);
     if (chunk.meshes) {
       for (const k of ["opaque", "foliage", "water"]) {
         const m = chunk.meshes[k];
