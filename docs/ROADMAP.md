@@ -201,9 +201,12 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       *Increment 1 done — slabs:* blocks can declare a `shape` = list of sub-boxes
       ([x0,y0,z0,x1,y1,z1] in 0..1); the mesher emits box faces (flat-lit path,
       full cubes untouched), collision tests the boxes, and the DDA raycast is
-      sub-voxel (correct targeting/normals). Added a `STONE_SLAB` (auto item/drop);
-      placing a slab on a matching slab doubles it to a full block; highlight/crack
-      overlays fit the shape. *Next:* **stairs (Increment 2)** — a 2-box shape that
+      sub-voxel (correct targeting/normals, incl. the hit point). Added `STONE_SLAB`
+      + a top-half variant: clicking the upper/lower half of a face places a top/
+      bottom slab (Minecraft-style), and placing onto a matching slab doubles it to
+      a full block. Introduced a `variantOf` pattern (the top slab shares config,
+      has no own item, drops + mines as the base). Highlight/crack overlays fit the
+      shape. *Next:* **stairs (Increment 2)** — a 2-box shape that
       forces the **orientation/metadata** decision (the voxel `Uint8Array` has no
       room for a facing; need a parallel meta layer / packed bits / per-facing ids).
       Then fences + **attached wall-torches** (the torch motivation). Still

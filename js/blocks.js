@@ -43,6 +43,7 @@ export const BLOCK = {
   TORCH: 25,
   // non-cube shapes
   STONE_SLAB: 26,
+  STONE_SLAB_TOP: 27, // top-half variant of STONE_SLAB (chosen at placement time)
 };
 
 // Per-block definitions.
@@ -54,6 +55,9 @@ export const BLOCK = {
 //                 ground plants set this; larger flora (cactus, logs) do not.
 //   light:       block-light emission level (0-15); torches glow, most blocks 0.
 const PLANT = { solid: false, transparent: true, opaque: false, render: "cross", needsSupport: true };
+// Shared config for stone slabs (bottom + top variants). `full` = the block a
+// doubled slab becomes.
+const SLAB = { tiles: { all: "stone" }, opaque: false, full: BLOCK.STONE };
 
 export const BLOCKS = {
   [BLOCK.STONE]:   { name: "Stone",       tiles: { all: "stone" } },
@@ -85,9 +89,12 @@ export const BLOCKS = {
 
   [BLOCK.TORCH]:         { name: "Torch",         tiles: { all: "torch" },         ...PLANT, light: 14 },
 
-  // Half-height bottom slab. Non-opaque so light flows around it (no hard shadow).
-  // `full` = the block it becomes when a second slab is placed on top (doubled).
-  [BLOCK.STONE_SLAB]:    { name: "Stone Slab",    tiles: { all: "stone" }, opaque: false, shape: [[0, 0, 0, 1, 0.5, 1]], full: BLOCK.STONE },
+  // Half-height slabs. Non-opaque so light flows around them (no hard shadow).
+  // `full` = the block a doubled slab becomes; `topVariant` = the top-half id to
+  // place when clicking the upper half of a face; `variantOf` = the base slab
+  // (the variant has no item and drops the base's item).
+  [BLOCK.STONE_SLAB]:     { name: "Stone Slab", ...SLAB, shape: [[0, 0, 0, 1, 0.5, 1]], topVariant: BLOCK.STONE_SLAB_TOP },
+  [BLOCK.STONE_SLAB_TOP]: { name: "Stone Slab", ...SLAB, shape: [[0, 0.5, 0, 1, 1, 1]], variantOf: BLOCK.STONE_SLAB },
 };
 
 // Fill in defaults.
@@ -152,6 +159,7 @@ const HARDNESS = {
 export function blockHardness(id) {
   if (id in HARDNESS) return HARDNESS[id];
   const b = BLOCKS[id];
+  if (b?.variantOf != null) return blockHardness(b.variantOf);
   if (b && b.render === "cross") return 0; // plants/torches pop instantly
   return 1.0;
 }
@@ -172,8 +180,16 @@ const BLOCK_MIN_TIER = {
   [BLOCK.STONE]: 1, [BLOCK.COBBLE]: 1, [BLOCK.SANDSTONE]: 1, [BLOCK.COAL_ORE]: 1, [BLOCK.STONE_SLAB]: 1,
   [BLOCK.IRON_ORE]: 2, [BLOCK.GOLD_ORE]: 3,
 };
-export function blockTool(id) { return BLOCK_TOOL[id] ?? null; }
-export function blockMinTier(id) { return BLOCK_MIN_TIER[id] ?? 0; }
+export function blockTool(id) {
+  if (id in BLOCK_TOOL) return BLOCK_TOOL[id];
+  const v = BLOCKS[id]?.variantOf;
+  return v != null ? blockTool(v) : null;
+}
+export function blockMinTier(id) {
+  if (id in BLOCK_MIN_TIER) return BLOCK_MIN_TIER[id];
+  const v = BLOCKS[id]?.variantOf;
+  return v != null ? blockMinTier(v) : 0;
+}
 
 // The blocks offered in the hotbar, in order.
 // Kept at 9 so it maps cleanly to digit keys 1-9. (A proper >9-block solution —

@@ -326,11 +326,12 @@ export class Player {
   placeBlock() {
     const hit = this.raycast();
     if (!hit || !this.placeId) return;
-    // Placing a slab onto a matching slab from above merges them into a full block
-    // (so it sits flush instead of leaving a half-block gap in the cell above).
     const placeDef = BLOCKS[this.placeId];
-    if (placeDef?.full && hit.normal.y > 0 && this.world.getBlock(hit.x, hit.y, hit.z) === this.placeId) {
-      this.world.setBlock(hit.x, hit.y, hit.z, placeDef.full);
+    const full = placeDef?.full; // the full block a doubled slab becomes (slabs only)
+
+    // Doubling: aiming at the top of a same-material slab fills that voxel to full.
+    if (full && hit.normal.y > 0 && BLOCKS[this.world.getBlock(hit.x, hit.y, hit.z)]?.full === full) {
+      this.world.setBlock(hit.x, hit.y, hit.z, full);
       if (this.onPlace) this.onPlace();
       return;
     }
@@ -338,9 +339,26 @@ export class Player {
     const py = hit.y + hit.normal.y;
     const pz = hit.z + hit.normal.z;
     const tgt = this.world.getBlock(px, py, pz);
+    // The cell we'd place into already holds a same-material slab → double to full
+    // (e.g. aiming at a neighbouring block's face beside an existing slab).
+    if (full && BLOCKS[tgt]?.full === full) {
+      this.world.setBlock(px, py, pz, full);
+      if (this.onPlace) this.onPlace();
+      return;
+    }
     if (tgt !== 0 && tgt !== BLOCK.WATER) return; // can build into air or displace water
     if (this.overlapsPlayer(px, py, pz)) return;
-    this.world.setBlock(px, py, pz, this.placeId);
+
+    // Slabs pick their half from where the face was clicked: a top face → bottom
+    // slab, a bottom face → top slab, a side face → whichever half you clicked.
+    let id = this.placeId;
+    if (placeDef?.topVariant) {
+      const top = hit.normal.y > 0 ? false
+        : hit.normal.y < 0 ? true
+          : (hit.point.y - py) >= 0.5;
+      if (top) id = placeDef.topVariant;
+    }
+    this.world.setBlock(px, py, pz, id);
     if (this.onPlace) this.onPlace(); // survival: consume one from the inventory
   }
 

@@ -28,10 +28,14 @@ export function raycastVoxels(getBlock, origin, dir, reach, isHit = isSolid) {
     const block = getBlock(x, y, z);
     if (isHit(block)) {
       const shape = BLOCKS[block]?.shape;
-      if (!shape) return { x, y, z, normal: { x: nx, y: ny, z: nz }, block };
+      if (!shape) {
+        return { x, y, z, normal: { x: nx, y: ny, z: nz }, block,
+                 point: { x: ox + dx * t, y: oy + dy * t, z: oz + dz * t } };
+      }
       // Sub-voxel: only a hit if the ray actually crosses one of the boxes.
       const h = rayShape(ox, oy, oz, dx, dy, dz, x, y, z, shape, reach);
-      if (h) return { x, y, z, normal: h.normal, block };
+      if (h) return { x, y, z, normal: h.normal, block,
+                      point: { x: ox + dx * h.t, y: oy + dy * h.t, z: oz + dz * h.t } };
       // else fall through and keep stepping past this voxel
     }
     if (tMaxX < tMaxY && tMaxX < tMaxZ) {

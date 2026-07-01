@@ -18,6 +18,7 @@ for (const [name, blockId] of Object.entries(BLOCK)) {
   if (blockId === BLOCK.AIR) continue;
   const b = BLOCKS[blockId];
   if (!b) continue;
+  if (b.variantOf != null) continue; // variant blocks (e.g. top slab) have no own item
   const id = name.toLowerCase();
   def(id, { name: b.name, tile: b.faces.side, place: blockId });
   blockToItem[blockId] = id;
@@ -68,7 +69,10 @@ export function isBlockItem(itemId) { return ITEMS[itemId]?.place != null; }
 export function itemTile(itemId) { return ITEMS[itemId]?.tile ?? null; }
 export function itemName(itemId) { return ITEMS[itemId]?.name ?? itemId; }
 export function dropForBlock(blockId) {
-  return (blockId in DROPS) ? DROPS[blockId] : (blockToItem[blockId] ?? null);
+  if (blockId in DROPS) return DROPS[blockId];
+  const v = BLOCKS[blockId]?.variantOf; // a variant drops its base block's item
+  if (v != null) return blockToItem[v] ?? null;
+  return blockToItem[blockId] ?? null;
 }
 
 // Default hotbar contents (item ids).
