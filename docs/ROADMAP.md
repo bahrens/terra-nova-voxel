@@ -332,14 +332,12 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       solid, so the block raycast passes straight through them and you can't
       target/break them. Give the interaction ray a separate "targetable" predicate
       (include cross-plants) so they can be destroyed — dropping nothing or seeds.
-- [ ] **Proper PWA / home-screen icon** — there's no app icon or web manifest, so
-      "Add to Home Screen" falls back to a screenshot of the page. Add an
-      `apple-touch-icon` (180²) and a `manifest.webmanifest` (name "Terra Nova",
-      `display: standalone`, `theme_color #0b1018`, 192²/512² icons), linked from
-      `index.html`. Icon idea: a stylized grass/voxel block or a "TN" monogram.
-      Caveat: manifest icons must be real image files, which breaks the current
-      "zero image assets" rule — either commit small PNGs or generate them from a
-      canvas in a small deploy step.
+- [x] **Proper PWA / home-screen icon** *(done)* — a stylized isometric grass
+      "voxel block", drawn procedurally by `tools/make-icons.mjs` (no deps, keeps
+      the canvas-drawn ethos) into `icons/icon-{180,192,512}.png`. Added
+      `manifest.webmanifest` (standalone, landscape, theme `#0b1018`, maskable
+      icons) plus `apple-touch-icon` / `manifest` / `apple-mobile-web-app-title`
+      links in `index.html`. Rerun the script to tweak the art.
 - [ ] **Proper torch shape + wall mounting** — the torch is a flat cross billboard
       placeholder. Want a real 3D torch post, and the ability to place it on the
       *side* of a block (angled outward), like Minecraft. Depends on the non-cube
