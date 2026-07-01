@@ -151,6 +151,11 @@ function closeInventory() {
 }
 const invCloseBtn = document.getElementById("invClose");
 if (invCloseBtn) invCloseBtn.addEventListener("click", closeInventory);
+const invCloseXBtn = document.getElementById("invCloseX");
+if (invCloseXBtn) invCloseXBtn.addEventListener("click", closeInventory);
+// Tap the dimmed backdrop (outside the panel) to close — always available even
+// when the touch controls are hidden.
+inventoryEl.addEventListener("click", (e) => { if (e.target === inventoryEl) closeInventory(); });
 
 // Desktop: pointer-lock changes drive the UI.
 document.addEventListener("pointerlockchange", () => {

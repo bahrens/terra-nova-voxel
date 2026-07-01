@@ -32,6 +32,7 @@ export class Player {
     this.flying = false;
     this.flyFast = false;   // toggled by double-tapping W while flying (or the touch chevron)
     this.sprintToggle = false; // touch chevron: run/walk on the ground
+    this.crouchToggle = false; // desktop C toggles crouch (touch uses the hold-down button)
     this.enabled = false;
 
     this.keys = new Set();
@@ -123,7 +124,8 @@ export class Player {
     if (wish.lengthSq() > 1) wish.normalize();
 
     const sprint = this.keys.has("ShiftLeft") || this.keys.has("ShiftRight") || this.sprintToggle;
-    const crouching = !this.flying && this.keys.has("KeyC"); // touch down button on the ground
+    // Desktop: C toggles crouchToggle. Touch: the hold-down button adds KeyC.
+    const crouching = !this.flying && (this.crouchToggle || this.keys.has("KeyC"));
 
     if (this.flying) {
       const speed = FLY * (this.flyFast ? 2.6 : 1);
@@ -131,7 +133,7 @@ export class Player {
       this.velocity.z = wish.z * speed;
       let vy = 0;
       if (this.keys.has("Space")) vy += speed;
-      // Shift (or Ctrl / C) descends while flying.
+      // Shift / Ctrl descends while flying (touch: the hold-down button = KeyC).
       if (sprint || this.keys.has("ControlLeft") || this.keys.has("KeyC")) vy -= speed;
       this.velocity.y = vy;
     } else {
@@ -152,10 +154,12 @@ export class Player {
     const steps = Math.max(1, Math.ceil(maxComp / 0.18));
     const sx = disp.x / steps, sy = disp.y / steps, sz = disp.z / steps;
 
+    // Sneak edge-guard applies when crouching and standing on ground this frame.
+    const sneaking = crouching && this.onGround;
     this.onGround = false;
     for (let i = 0; i < steps; i++) {
-      this.moveAxis("x", sx);
-      this.moveAxis("z", sz);
+      this.moveAxis("x", sx, sneaking);
+      this.moveAxis("z", sz, sneaking);
       this.moveAxis("y", sy);
     }
 
@@ -222,7 +226,7 @@ export class Player {
     }
   }
 
-  moveAxis(comp, amount) {
+  moveAxis(comp, amount, edgeGuard = false) {
     if (amount === 0) return;
     this.position[comp] += amount;
     if (this.intersects()) {
@@ -233,7 +237,25 @@ export class Player {
       } else {
         this.velocity[comp] = 0;
       }
+      return;
     }
+    // Sneak edge-guard: undo a horizontal move that would leave us hanging over a
+    // ledge (no ground under the footprint), so crouching can't walk off a block.
+    if (edgeGuard && comp !== "y" && !this.hasGroundBelow()) {
+      this.position[comp] -= amount;
+      this.velocity[comp] = 0;
+    }
+  }
+
+  // Any solid block directly under the player's footprint (for the sneak guard).
+  hasGroundBelow() {
+    const by = Math.floor(this.position.y - 0.05);
+    const minX = Math.floor(this.position.x - HALF_WIDTH), maxX = Math.floor(this.position.x + HALF_WIDTH);
+    const minZ = Math.floor(this.position.z - HALF_WIDTH), maxZ = Math.floor(this.position.z + HALF_WIDTH);
+    for (let bz = minZ; bz <= maxZ; bz++)
+      for (let bx = minX; bx <= maxX; bx++)
+        if (isSolid(this.world.getBlock(bx, by, bz))) return true;
+    return false;
   }
 
   intersects() {

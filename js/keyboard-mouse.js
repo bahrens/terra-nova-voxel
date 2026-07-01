@@ -9,6 +9,7 @@
 export function setupKeyboardMouse(player, opts = {}) {
   const ready = opts.isReady || (() => true);
   let lastWTap = -1e9;
+  let cHeld = false; // dedupe C key-repeat for the crouch toggle
 
   document.addEventListener("keydown", (e) => {
     // UI command shortcuts — available whenever the game is started (even with the
@@ -28,6 +29,9 @@ export function setupKeyboardMouse(player, opts = {}) {
     }
     // Player control — only while actively in-world.
     if (!player.enabled) return;
+    // C toggles crouch on desktop. Kept out of the keys set (deduped against
+    // key-repeat) so it stays a toggle, not the touch hold-to-descend behavior.
+    if (e.code === "KeyC") { if (!cHeld) { cHeld = true; player.crouchToggle = !player.crouchToggle; } return; }
     const fresh = !player.keys.has(e.code); // ignore key-repeat events
     player.keys.add(e.code);
     if (!fresh) return;
@@ -43,7 +47,7 @@ export function setupKeyboardMouse(player, opts = {}) {
       if (n >= 1 && n <= 9 && player.onSelect) player.onSelect(n - 1, true);
     }
   });
-  document.addEventListener("keyup", (e) => player.keys.delete(e.code));
+  document.addEventListener("keyup", (e) => { if (e.code === "KeyC") cHeld = false; player.keys.delete(e.code); });
 
   document.addEventListener("mousemove", (e) => {
     if (!player.enabled) return;
