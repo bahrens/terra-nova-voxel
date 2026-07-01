@@ -24,7 +24,8 @@ js/
   chunk.js        voxel storage + per-block light (BFS) + mesher (face cull, AO, water heights)
   light.js        pure sky/block light propagation (accessor-driven; shared by chunk + world)
   raycast.js      Amanatides & Woo voxel DDA (shared block-targeting util)
-  player.js       FPS controls, AABB collision, mining/placement, input
+  player.js       FPS controls, AABB collision, mining/placement (input fed in externally)
+  keyboard-mouse.js  desktop input source: keyboard + mouse -> player API + UI command callbacks
   blocks.js       block registry (data-driven) + helpers (isSolid/isOpaque/…)
   items.js        item/tool registry, block<->item mapping, drop tables
   recipes.js      crafting recipe registry + canCraft()
@@ -33,8 +34,9 @@ js/
   textures.js     procedural texture atlas + hotbar icon canvases
   noise.js        seedable Perlin + fBm + ridged noise
   sky.js          day/night cycle, sun/moon/stars, brightness scaling
-  profiler.js     EMA per-section frame timings (toggleable overlay)
-  touch.js        mobile touch controls (joystick, look pad, action buttons)
+  profiler.js     EMA per-section frame timings (data source for overlays)
+  overlays.js     debug + profiler HUD dashboards (on-screen dev tools)
+  touch.js        mobile touch input source (joystick, look pad, action buttons)
   version.js      build stamp (shown in menu/debug; overwritten at deploy)
 vendor/three.module.js
 ```
@@ -132,10 +134,11 @@ build a second variant.
     stays the game's concern.
   - ✅ `raycast.js` (`raycastVoxels`) — DDA voxel traversal pulled out of
     `player.js` into a reusable, world-agnostic util.
-- **Tier 2 — when it next bites:**
-  - ☐ Unify input (`player.js` listeners + `main.js` keydown + `touch.js`) into one
-    input layer.
-  - ☐ Pull the debug/profiler overlay rendering out of `main.js`.
+- **Tier 2 — done:**
+  - ✅ Input unified: `keyboard-mouse.js` (desktop) + `touch.js` are parallel input
+    *sources* driving the player's public API; `Player` is now DOM-free and
+    `main.js` has no input listeners. Sets up the selectable touch-scheme work.
+  - ✅ `overlays.js` — debug + profiler HUD dashboards pulled out of `main.js`.
 - **Tier 3 — defer until a real second use case (avoid premature abstraction):**
   - ☐ `world.js` → injectable `TerrainGenerator` / `FluidSimulator` / decorator.
   - ☐ Entity/mob registry + data-driven spawn/AI configs.

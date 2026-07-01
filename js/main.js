@@ -5,13 +5,15 @@ import { World } from "./world.js";
 import { Player } from "./player.js";
 import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
-import { BLOCKS, BLOCK } from "./blocks.js";
+import { BLOCK } from "./blocks.js";
 import { dropForBlock } from "./items.js";
 import { EntityManager } from "./entity.js";
 import { Inventory } from "./inventory.js";
 import { SaveManager } from "./save.js";
+import { Overlays } from "./overlays.js";
 import { Profiler } from "./profiler.js";
 import { setupTouch } from "./touch.js";
+import { setupKeyboardMouse } from "./keyboard-mouse.js";
 import { BUILD } from "./version.js";
 
 const SKY = 0x9ad0f0;
@@ -157,6 +159,19 @@ document.addEventListener("pointerlockchange", () => {
   refreshUI();
 });
 
+// Desktop: keyboard + mouse. Always active (inert on touch-only devices).
+setupKeyboardMouse(player, {
+  isReady: () => started,
+  onSave: () => save.save(),
+  onToggleInventory: () => (inventoryOpen ? closeInventory() : openInventory()),
+  onEscape: () => { if (inventoryOpen) closeInventory(); },
+  onToggleMode: toggleMode,
+  onToggleProfiler: toggleProfiler,
+  onCopyProfiler: () => { overlays.copySnapshot(fps, peakRealMs); peakRealMs = 0; },
+  onSpawnMob: spawnMobAhead,
+  onToggleLight: toggleLightView,
+});
+
 // Touch: virtual joystick / look pad / action buttons.
 if (isTouch) {
   document.body.classList.add("is-touch");
@@ -239,20 +254,10 @@ function spawnMobAhead() {
   entities.spawnMob(player.position.x + f.x * 2, player.position.y + 1, player.position.z + f.z * 2);
 }
 
-document.addEventListener("keydown", (e) => {
-  if (!started) return;
-  if (e.code === "KeyK") save.save();
-  if (e.code === "KeyE") { e.preventDefault(); inventoryOpen ? closeInventory() : openInventory(); }
-  if (e.code === "Escape" && inventoryOpen) closeInventory();
-  if (e.code === "KeyG") toggleMode();          // creative <-> survival
-  if (e.code === "KeyP") toggleProfiler();
-  if (e.code === "KeyV") copyProfilerSnapshot();
-  if (e.code === "KeyM") spawnMobAhead();        // spawn a critter ahead
-  if (e.code === "KeyL") toggleLightView();
-});
-
 // Profiler must exist before updateOptLabels() runs below (it reads prof.enabled).
 const prof = new Profiler();
+// Debug + profiler HUD dashboards (see overlays.js).
+const overlays = new Overlays({ player, world, entities, sky, prof, renderer, build: BUILD, toast });
 
 // ---- Menu option buttons (so touch can reach the same toggles) ----
 const optModeBtn = document.getElementById("optMode");
@@ -319,8 +324,7 @@ function start() {
 
     fpsAcc += dt; fpsFrames++;
     if (fpsAcc >= 0.5) { fps = Math.round(fpsFrames / fpsAcc); fpsAcc = 0; fpsFrames = 0; }
-    updateDebug();
-    updateProfiler();
+    overlays.update(fps, peakRealMs);
 
     requestAnimationFrame(loop);
   };
@@ -353,66 +357,6 @@ function applySky() {
   // (matching the menu / inventory / rotate overlays) otherwise. Runs every frame
   // in the loop, so it stays correct across every state.
   setTheme(inWorld() ? "#" + scene.background.getHexString() : "#0b1018");
-}
-
-function updateDebug() {
-  if (!player.enabled) return;
-  const p = player.position;
-  const hit = player.raycast();
-  const looking = hit ? `${BLOCKS[hit.block]?.name ?? hit.block} @ ${hit.x},${hit.y},${hit.z}` : "—";
-  const mins = Math.floor(sky.t * 24 * 60);
-  const clock24 = `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-  debugEl.textContent =
-    `Terra Nova  build ${BUILD}\n` +
-    `xyz  ${p.x.toFixed(1)} ${p.y.toFixed(1)} ${p.z.toFixed(1)}\n` +
-    `chunk ${Math.floor(p.x / CHUNK_SIZE)}, ${Math.floor(p.z / CHUNK_SIZE)}   chunks ${world.chunks.size}   ents ${entities.list.length}\n` +
-    `fps  ${fps}   ${player.flying ? (player.flyFast ? "FLY·fast" : "FLY") : (player.onGround ? "ground" : "air")}\n` +
-    `time ${clock24}   look ${looking}`;
-}
-
-// Toggleable profiler overlay: per-section frame timings + draw stats. A first-
-// class dev tool — leave it in for whenever performance needs a look.
-const profilerEl = document.getElementById("profiler");
-function updateProfiler() {
-  if (!prof.enabled) { if (profilerEl.classList.contains("active")) profilerEl.classList.remove("active"); return; }
-  profilerEl.classList.add("active");
-  const info = renderer.info.render;
-  const ms = (l) => prof.get(l).toFixed(2).padStart(6);
-  const minFps = peakRealMs > 0 ? Math.round(1000 / peakRealMs) : fps;
-  profilerEl.textContent =
-    `PROFILER (P·V copy) fps ${fps}\n` +
-    `real  ${ms("real")} ms  peak ${peakRealMs.toFixed(0)} (min ${minFps}fps)\n` +
-    `cpu   ${ms("frame")} ms\n` +
-    ` player${ms("player")}\n` +
-    ` world ${ms("world")}\n` +
-    `   gen ${ms("gen")}\n` +
-    `   lit ${ms("light")}\n` +
-    `  mesh ${ms("mesh")}\n` +
-    ` entity${ms("entity")}\n` +
-    ` sky   ${ms("sky")}\n` +
-    ` render${ms("render")}\n` +
-    `draws ${info.calls}   tris ${(info.triangles / 1000).toFixed(0)}k\n` +
-    `chunks ${world.chunks.size}  ents ${entities.list.length}\n` +
-    `meshQ ${world.meshQueue.length}  litQ ${world.lightQueue.size}`;
-}
-
-// Copy a compact, paste-ready profiler snapshot to the clipboard (V), so the
-// numbers from a slow frame are one keypress + paste away.
-function copyProfilerSnapshot() {
-  const ms = (l) => prof.get(l).toFixed(2);
-  const info = renderer.info.render;
-  const minFps = peakRealMs > 0 ? Math.round(1000 / peakRealMs) : fps;
-  const text =
-    `Terra Nova profiler @ ${fps} fps | real ${ms("real")}ms, worst ${peakRealMs.toFixed(0)}ms (min ${minFps}fps) | cpu-frame ${ms("frame")}ms\n` +
-    `player ${ms("player")} | world ${ms("world")} (gen ${ms("gen")}, light ${ms("light")}, mesh ${ms("mesh")}) ` +
-    `| entity ${ms("entity")} | sky ${ms("sky")} | render ${ms("render")}\n` +
-    `draws ${info.calls} | tris ${info.triangles} | chunks ${world.chunks.size} | ` +
-    `ents ${entities.list.length} | meshQ ${world.meshQueue.length} | litQ ${world.lightQueue.size}`;
-  const ok = () => toast("Profiler copied — paste it to share");
-  const fallback = () => { console.log(text); toast("Profiler logged to console (clipboard blocked)"); };
-  try { navigator.clipboard.writeText(text).then(ok, fallback); }
-  catch { fallback(); }
-  peakRealMs = 0; // reset the worst-frame hold for the next measurement window
 }
 
 prime();

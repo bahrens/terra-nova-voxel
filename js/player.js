@@ -32,7 +32,6 @@ export class Player {
     this.flying = false;
     this.flyFast = false;   // toggled by double-tapping W while flying (or the touch chevron)
     this.sprintToggle = false; // touch chevron: run/walk on the ground
-    this.lastWTap = -1e9;
     this.enabled = false;
 
     this.keys = new Set();
@@ -53,8 +52,7 @@ export class Player {
     this.onSelect = null; // callback(deltaOrIndex) hook set by main
     this.onBreak = null;  // callback(x, y, z, blockId, harvest) when a block is broken
     this.onPlace = null;  // callback() after a block is placed (survival consumes)
-
-    this.bindInput();
+    // Input is fed in by keyboard-mouse.js / touch.js via the public API above.
   }
 
   // A translucent crack overlay shown on the block being mined, fading in with
@@ -92,43 +90,6 @@ export class Player {
     return line;
   }
 
-  bindInput() {
-    document.addEventListener("keydown", (e) => {
-      if (!this.enabled) return;
-      const fresh = !this.keys.has(e.code); // ignore key-repeat events
-      this.keys.add(e.code);
-      if (!fresh) return;
-      if (e.code === "KeyF") { this.flying = !this.flying; this.flyFast = false; }
-      // Double-tap W toggles fast flight (stays on until toggled off).
-      if (e.code === "KeyW" && this.flying) {
-        const now = performance.now();
-        if (now - this.lastWTap < 300) this.flyFast = !this.flyFast;
-        this.lastWTap = now;
-      }
-      if (e.code.startsWith("Digit")) {
-        const n = parseInt(e.code.slice(5), 10);
-        if (n >= 1 && n <= 9 && this.onSelect) this.onSelect(n - 1, true);
-      }
-    });
-    document.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    document.addEventListener("mousemove", (e) => {
-      if (!this.enabled) return;
-      this.lookDelta(e.movementX, e.movementY);
-    });
-    window.addEventListener("wheel", (e) => {
-      if (!this.enabled || !this.onSelect) return;
-      this.onSelect(Math.sign(e.deltaY), false);
-    }, { passive: true });
-    document.addEventListener("mousedown", (e) => {
-      if (!this.enabled) return;
-      if (e.button === 0) this.leftDown = true; // creative break handled in updateMining (edge-detected)
-      else if (e.button === 2) this.placeBlock();
-    });
-    document.addEventListener("mouseup", (e) => {
-      if (e.button === 0) { this.leftDown = false; this.mining = null; }
-    });
-    document.addEventListener("contextmenu", (e) => e.preventDefault());
-  }
 
   // Apply a look delta (mouse movement or a touch drag) to yaw/pitch.
   lookDelta(dx, dy) {

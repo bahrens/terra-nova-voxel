@@ -307,6 +307,19 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       (`E`) now lets any block be assigned to the 9-slot hotbar, so the digit-key
       cap no longer limits which blocks are reachable. Sandstone (and everything
       else) is placeable again via the inventory. See Tier 1 Inventory.
+- [ ] **Redo inventory → hotbar assignment UX** — today opening the inventory
+      (`E`) hides the HUD hotbar, so the hotbar and the item grid are never on
+      screen together and you can't see the slot you're assigning to. Redesign
+      Minecraft-style: show the hotbar *inside* the inventory screen (bottom row)
+      with the item grid above, and assign via click-to-slot or drag-and-drop into
+      a specific slot. Touches `inventory.js` (rendering) + the inventory panel
+      markup/CSS.
+- [ ] **Crouch: toggle + edge protection** — `C` should *toggle* crouch (currently
+      hold-only via `keys.has("KeyC")`), and while crouched you should not walk off
+      a block edge (Minecraft-style sneak edge-guard). Needs a crouch-toggle flag on
+      the player and an edge check in the movement/collision step that clamps
+      horizontal motion at ledges while crouching. (Supersedes the "crouch
+      edge-protection" note under the mobile item.)
 - [ ] **Proper torch shape + wall mounting** — the torch is a flat cross billboard
       placeholder. Want a real 3D torch post, and the ability to place it on the
       *side* of a block (angled outward), like Minecraft. Depends on the non-cube
