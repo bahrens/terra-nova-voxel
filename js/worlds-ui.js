@@ -8,8 +8,10 @@ export function setupWorldsUI(save) {
   const listEl = $("worldList");
   const openBtn = $("worldsBtn"), closeBtn = $("worldsCloseX");
   const nameInput = $("worldName"), seedInput = $("worldSeed"), createBtn = $("worldCreate");
+  const createBox = $("worldCreateBox"), newToggle = $("worldNewToggle"), newCancel = $("worldNewCancel");
 
-  const open = () => { render(); overlay.classList.add("active"); };
+  const collapseCreate = () => { if (createBox) createBox.classList.remove("open"); };
+  const open = () => { render(); collapseCreate(); overlay.classList.add("active"); };
   const close = () => overlay.classList.remove("active");
 
   const fmtAgo = (t) => {
@@ -66,6 +68,11 @@ export function setupWorldsUI(save) {
   if (openBtn) openBtn.addEventListener("click", open);
   if (closeBtn) closeBtn.addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
+  if (newToggle) newToggle.addEventListener("click", () => {
+    createBox.classList.add("open");
+    if (nameInput) nameInput.focus();
+  });
+  if (newCancel) newCancel.addEventListener("click", collapseCreate);
   if (createBtn) createBtn.addEventListener("click", () => {
     save.createWorld({ name: nameInput?.value, seed: seedInput?.value });
   });

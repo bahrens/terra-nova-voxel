@@ -111,11 +111,16 @@
         <p class="inv-hint">Load or delete a saved world, or create a new one. Each world is stored in this browser.</p>
       </div>
       <div id="worldList" class="world-list"></div>
-      <div class="world-create">
-        <div class="inv-sub">New world</div>
-        <input id="worldName" class="w-input" type="text" placeholder="Name (optional)" maxlength="24" autocomplete="off" />
-        <input id="worldSeed" class="w-input" type="text" placeholder="Seed (blank = random)" maxlength="24" autocomplete="off" />
-        <button id="worldCreate" class="secondary">Create world</button>
+      <div class="world-create" id="worldCreateBox">
+        <button id="worldNewToggle" class="secondary">＋ New World</button>
+        <div class="world-create-form">
+          <input id="worldName" class="w-input" type="text" placeholder="Name (optional)" maxlength="24" autocomplete="off" />
+          <input id="worldSeed" class="w-input" type="text" placeholder="Seed (blank = random)" maxlength="24" autocomplete="off" />
+          <div class="world-create-row">
+            <button id="worldCreate" class="secondary">Create world</button>
+            <button id="worldNewCancel" class="secondary">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
