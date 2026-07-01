@@ -75,10 +75,13 @@ export function setupTouch(player, opts = {}) {
   const upHold = (down) => () => { if (down) player.keys.add("Space"); else player.keys.delete("Space"); };
   const downHold = (down) => () => { if (down) player.keys.add("KeyC"); else player.keys.delete("KeyC"); };
   const upEl = $("btnJump"), downEl = $("btnDown");
+  // Highlight the up button while flying is toggled on (same "on" state the
+  // chevron and the sneak button use), so the fly toggle is visible.
+  const syncFly = () => { if (upEl) upEl.classList.toggle("active", player.flying); };
   if (upEl) {
     upEl.addEventListener("pointerdown", (e) => {
       e.preventDefault(); upHold(true)();
-      const t = Date.now(); if (t - lastUp < 300 && !player.flying) { player.flying = true; player.flyFast = false; syncSprint(); } lastUp = t;
+      const t = Date.now(); if (t - lastUp < 300 && !player.flying) { player.flying = true; player.flyFast = false; syncSprint(); syncFly(); } lastUp = t;
     });
     upEl.addEventListener("pointerup", (e) => { e.preventDefault(); upHold(false)(); });
     upEl.addEventListener("pointercancel", upHold(false));
@@ -89,7 +92,7 @@ export function setupTouch(player, opts = {}) {
       const t = Date.now();
       if (t - lastDown < 300) {
         // Double-tap: land if flying, else toggle sneak (mirrors up = fly).
-        if (player.flying) { player.flying = false; player.flyFast = false; syncSprint(); }
+        if (player.flying) { player.flying = false; player.flyFast = false; syncSprint(); syncFly(); }
         else { player.crouchToggle = !player.crouchToggle; downEl.classList.toggle("active", player.crouchToggle); }
       }
       lastDown = t;
