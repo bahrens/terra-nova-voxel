@@ -9,7 +9,7 @@
 // space and the returned normal matches the box face — correct targeting/placing.
 import { isSolid, BLOCKS } from "./blocks.js";
 
-export function raycastVoxels(getBlock, origin, dir, reach, isHit = isSolid) {
+export function raycastVoxels(getBlock, origin, dir, reach, isHit = isSolid, shapeAt = (id) => BLOCKS[id]?.shape) {
   const ox = origin.x, oy = origin.y, oz = origin.z;
   const dx = dir.x, dy = dir.y, dz = dir.z;
   let x = Math.floor(ox), y = Math.floor(oy), z = Math.floor(oz);
@@ -27,7 +27,7 @@ export function raycastVoxels(getBlock, origin, dir, reach, isHit = isSolid) {
   while (t <= reach) {
     const block = getBlock(x, y, z);
     if (isHit(block)) {
-      const shape = BLOCKS[block]?.shape;
+      const shape = shapeAt(block, x, y, z);
       if (!shape) {
         return { x, y, z, normal: { x: nx, y: ny, z: nz }, block,
                  point: { x: ox + dx * t, y: oy + dy * t, z: oz + dz * t } };

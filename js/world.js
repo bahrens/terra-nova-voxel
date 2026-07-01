@@ -74,11 +74,13 @@ export class World {
   }
 
   // ---- Player edits (the save-able diff from procedural generation) ----
-  recordEdit(x, y, z, id) {
+  // Edits store a packed value `id | (meta << 8)`. Old saves (plain ids < 256)
+  // unpack to meta 0, so they load unchanged.
+  recordEdit(x, y, z, id, meta = 0) {
     const ck = key(floorDiv(x, CHUNK_SIZE), floorDiv(z, CHUNK_SIZE));
     let m = this.editsByChunk.get(ck);
     if (!m) { m = new Map(); this.editsByChunk.set(ck, m); }
-    m.set(x + "," + y + "," + z, id);
+    m.set(x + "," + y + "," + z, id | (meta << 8));
   }
 
   // Re-apply this chunk's stored edits over the freshly generated terrain.
@@ -86,9 +88,10 @@ export class World {
     const m = this.editsByChunk.get(key(chunk.cx, chunk.cz));
     if (!m) return;
     const ox = chunk.cx * CHUNK_SIZE, oz = chunk.cz * CHUNK_SIZE;
-    for (const [wk, id] of m) {
+    for (const [wk, v] of m) {
       const c = wk.split(","), x = +c[0], y = +c[1], z = +c[2];
-      chunk.set(x - ox, y, z - oz, id);
+      chunk.set(x - ox, y, z - oz, v & 255);
+      chunk.setMeta(x - ox, y, z - oz, (v >> 8) & 255);
       chunk.setW(x - ox, y, z - oz, 0);
       this.enqueueWaterAround(x, y, z); // let water re-settle around the edit
     }
@@ -97,7 +100,7 @@ export class World {
   serializeEdits() {
     const out = {};
     for (const m of this.editsByChunk.values())
-      for (const [wk, id] of m) out[wk] = id;
+      for (const [wk, v] of m) out[wk] = v;
     return out;
   }
 
@@ -105,7 +108,8 @@ export class World {
     this.editsByChunk.clear();
     if (!obj) return;
     for (const wk in obj) {
-      const c = wk.split(","); this.recordEdit(+c[0], +c[1], +c[2], obj[wk]);
+      const c = wk.split(","), v = obj[wk];
+      this.recordEdit(+c[0], +c[1], +c[2], v & 255, (v >> 8) & 255);
     }
   }
 
@@ -171,6 +175,14 @@ export class World {
     return chunk.get(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
   }
 
+  getMeta(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
+    const chunk = this.chunks.get(key(cx, cz));
+    if (!chunk) return 0;
+    return chunk.getMeta(x - cx * CHUNK_SIZE, y, z - cz * CHUNK_SIZE);
+  }
+
   // Skylight (0-15) of a world cell, or 15 if its chunk isn't loaded (assume lit
   // so the load edge doesn't go dark). Used by the mesher for face lighting.
   getSkyLight(x, y, z) {
@@ -231,15 +243,16 @@ export class World {
     }
   }
 
-  setBlock(x, y, z, id, remesh = true) {
+  setBlock(x, y, z, id, meta = 0, remesh = true) {
     if (y < 0 || y >= WORLD_HEIGHT) return;
     const cx = floorDiv(x, CHUNK_SIZE), cz = floorDiv(z, CHUNK_SIZE);
     const chunk = this.chunks.get(key(cx, cz));
     if (!chunk) return;
     const lx = x - cx * CHUNK_SIZE, lz = z - cz * CHUNK_SIZE;
     chunk.set(lx, y, lz, id);
+    chunk.setMeta(lx, y, lz, meta);
     chunk.setW(lx, y, lz, 0); // the cell's standing water is cleared by the edit
-    this.recordEdit(x, y, z, id); // remember player edits for save/load
+    this.recordEdit(x, y, z, id, meta); // remember player edits for save/load
     if (!remesh) return;
     chunk.dirty = true;
     this.queueMesh(chunk);

@@ -2,7 +2,7 @@
 // The mesher culls hidden faces, bakes directional lighting + ambient occlusion
 // into vertex colours, and emits separate geometry for opaque / foliage / water.
 import * as THREE from "three";
-import { AIR, BLOCK, BLOCKS, isOpaque, isLiquid } from "./blocks.js";
+import { AIR, BLOCK, BLOCKS, isOpaque, isLiquid, shapeFor } from "./blocks.js";
 
 // Rendered top height of an *open* (air above) water cell: a surface source
 // sits slightly below the block top; flowing water tapers with its level.
@@ -45,6 +45,7 @@ const _snapB = new Uint8Array(SNAP_N);   // block ids
 const _snapLs = new Uint8Array(SNAP_N);  // skylight
 const _snapLb = new Uint8Array(SNAP_N);  // block light
 const _snapW = new Uint8Array(SNAP_N);   // water level
+const _snapM = new Uint8Array(SNAP_N);   // metadata (block state)
 const snapIdx = (lx, y, lz) => (lx + 1) + SNAP_PX * (lz + 1) + SNAP_PX * SNAP_PX * y;
 
 function aoValue(side1, side2, corner) {
@@ -63,6 +64,8 @@ export class Chunk {
     // Packed per-voxel light: high nibble = skylight (0-15), low nibble = block
     // light (0-15). Filled by computeLight(); read by the mesher and World.
     this.light = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * WORLD_HEIGHT);
+    // Per-voxel metadata (block state: e.g. stair facing). 0 for most blocks.
+    this.meta = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * WORLD_HEIGHT);
     this.dirty = true;
     this.meshes = null; // { opaque, foliage, water } THREE.Mesh
   }
@@ -75,6 +78,16 @@ export class Chunk {
   setW(x, y, z, v) {
     if (y < 0 || y >= WORLD_HEIGHT) return;
     this.water[Chunk.idx(x, y, z)] = v;
+  }
+
+  getMeta(x, y, z) {
+    if (y < 0 || y >= WORLD_HEIGHT) return 0;
+    return this.meta[Chunk.idx(x, y, z)];
+  }
+
+  setMeta(x, y, z, m) {
+    if (y < 0 || y >= WORLD_HEIGHT) return;
+    this.meta[Chunk.idx(x, y, z)] = m;
   }
 
   static idx(x, y, z) {
@@ -241,6 +254,7 @@ export class Chunk {
           _snapB[pi] = this.data[ci];
           const l = this.light[ci]; _snapLs[pi] = (l >> 4) & 15; _snapLb[pi] = l & 15;
           _snapW[pi] = this.water[ci];
+          _snapM[pi] = this.meta[ci];
         }
     const fillBorder = (lx, lz) => {
       const wx = ox + lx, wz = oz + lz;
@@ -250,6 +264,7 @@ export class Chunk {
         _snapLs[pi] = world.getSkyLight(wx, y, wz);
         _snapLb[pi] = world.getBlockLight(wx, y, wz);
         _snapW[pi] = world.getWaterLevel(wx, y, wz);
+        _snapM[pi] = world.getMeta(wx, y, wz);
       }
     };
     for (let z = -1; z <= S; z++) { fillBorder(-1, z); fillBorder(S, z); }
@@ -268,6 +283,7 @@ export class Chunk {
       getSkyLight: (wx, wy, wz) => (wy >= H ? 15 : sample(_snapLs, wx, wy, wz, 0)),
       getBlockLight: (wx, wy, wz) => sample(_snapLb, wx, wy, wz, 0),
       getWaterLevel: (wx, wy, wz) => sample(_snapW, wx, wy, wz, 0),
+      getMeta: (wx, wy, wz) => sample(_snapM, wx, wy, wz, 0),
     };
 
     const buffers = { opaque: newBuffer(), foliage: newBuffer(), water: newBuffer() };
@@ -285,8 +301,12 @@ export class Chunk {
           if (def.liquid) { this.emitWaterCell(buffers.water, view, wx, wy, wz); continue; }
 
           const target = def.transparent ? buffers.foliage : buffers.opaque;
-          // Non-cube shapes (slabs, …) mesh their sub-boxes.
-          if (def.shape) { this.emitShape(target, view, wx, wy, wz, def, id); continue; }
+          // Non-cube shapes (slabs, stairs, …) mesh their sub-boxes; the shape is
+          // selected/rotated by the voxel's metadata.
+          if (def.shape) {
+            this.emitShape(target, view, wx, wy, wz, def, id, shapeFor(id, view.getMeta(wx, wy, wz)));
+            continue;
+          }
           for (const face of FACES) {
             const neighbor = view.getBlock(wx + face.dir[0], wy + face.dir[1], wz + face.dir[2]);
             // Cull faces hidden by an opaque neighbour, and internal faces between
@@ -391,9 +411,10 @@ export class Chunk {
     }
   }
 
-  // Non-cube shapes (slabs, later stairs/fences): emit each sub-box's faces.
-  emitShape(buf, world, wx, wy, wz, def, id) {
-    for (const box of def.shape)
+  // Non-cube shapes (slabs, stairs, fences): emit each sub-box's faces. `shape`
+  // is the voxel's meta-resolved boxes.
+  emitShape(buf, world, wx, wy, wz, def, id, shape) {
+    for (const box of shape)
       for (const face of FACES) this.emitBoxFace(buf, world, wx, wy, wz, face, def, box, id);
   }
 
@@ -407,7 +428,11 @@ export class Chunk {
     const boundary = pos ? box[a + 3] === 1 : box[a] === 0;
     if (boundary) {
       const nb = world.getBlock(wx + dx, wy + dy, wz + dz);
-      if (isOpaque(nb) || nb === id) return; // hidden by a full/like neighbour
+      // Hidden by an opaque neighbour, or by an identical block+state (culls the
+      // z-fighting seam between two identical slabs/stairs without hiding the
+      // faces of a differently-oriented same-block neighbour).
+      const same = nb === id && world.getMeta(wx + dx, wy + dy, wz + dz) === world.getMeta(wx, wy, wz);
+      if (isOpaque(nb) || same) return;
     }
     const u = face.u, v = face.v;
     const uAxis = u[0] ? 0 : (u[1] ? 1 : 2);

@@ -1,7 +1,7 @@
 // Player: first-person controls, AABB voxel collision, gravity/flight, and
 // DDA voxel raycasting for breaking and placing blocks.
 import * as THREE from "three";
-import { isSolid, blockHardness, blockTool, blockMinTier, BLOCKS } from "./blocks.js";
+import { isSolid, blockHardness, blockTool, blockMinTier, BLOCKS, shapeFor } from "./blocks.js";
 import { BLOCK } from "./blocks.js";
 import { raycastVoxels } from "./raycast.js";
 
@@ -271,7 +271,7 @@ export class Player {
         for (let bx = minX; bx <= maxX; bx++) {
           const id = this.world.getBlock(bx, by, bz);
           if (!isSolid(id)) continue;
-          const shape = BLOCKS[id]?.shape;
+          const shape = shapeFor(id, this.world.getMeta(bx, by, bz));
           if (!shape) return true; // full cube — the voxel overlap already collides
           // Shaped block: only collide if the AABB overlaps one of its sub-boxes.
           for (const b of shape) {
@@ -287,7 +287,9 @@ export class Player {
   raycast() {
     return raycastVoxels(
       (x, y, z) => this.world.getBlock(x, y, z),
-      this.camera.position, this.forwardVector(true), REACH);
+      this.camera.position, this.forwardVector(true), REACH,
+      isSolid,
+      (id, x, y, z) => shapeFor(id, this.world.getMeta(x, y, z)));
   }
 
   updateHighlight() {
@@ -300,7 +302,7 @@ export class Player {
   // Scale/position a unit-cube overlay (highlight or crack) to a block's shape —
   // its bounding box for shaped blocks, the full voxel otherwise.
   _fitBox(obj, hit) {
-    const shape = BLOCKS[hit.block]?.shape;
+    const shape = shapeFor(hit.block, this.world.getMeta(hit.x, hit.y, hit.z));
     if (shape) {
       let x0 = 1, y0 = 1, z0 = 1, x1 = 0, y1 = 0, z1 = 0;
       for (const b of shape) {
@@ -358,7 +360,18 @@ export class Player {
           : (hit.point.y - py) >= 0.5;
       if (top) id = placeDef.topVariant;
     }
-    this.world.setBlock(px, py, pz, id);
+    // Rotatable blocks (stairs): facing from the player's look (meta 0-3), and
+    // upside-down (bit 2) when placed on a ceiling / the upper half of a face.
+    let meta = 0;
+    if (placeDef?.rotates) {
+      const f = this.forwardVector(false);
+      meta = Math.abs(f.x) > Math.abs(f.z) ? (f.x > 0 ? 3 : 1) : (f.z > 0 ? 2 : 0);
+      const upside = hit.normal.y > 0 ? false
+        : hit.normal.y < 0 ? true
+          : (hit.point.y - py) >= 0.5;
+      if (upside) meta |= 4;
+    }
+    this.world.setBlock(px, py, pz, id, meta);
     if (this.onPlace) this.onPlace(); // survival: consume one from the inventory
   }
 

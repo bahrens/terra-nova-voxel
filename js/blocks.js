@@ -44,6 +44,7 @@ export const BLOCK = {
   // non-cube shapes
   STONE_SLAB: 26,
   STONE_SLAB_TOP: 27, // top-half variant of STONE_SLAB (chosen at placement time)
+  STONE_STAIRS: 28,   // facing stored in meta 0-3
 };
 
 // Per-block definitions.
@@ -95,6 +96,22 @@ export const BLOCKS = {
   // (the variant has no item and drops the base's item).
   [BLOCK.STONE_SLAB]:     { name: "Stone Slab", ...SLAB, shape: [[0, 0, 0, 1, 0.5, 1]], topVariant: BLOCK.STONE_SLAB_TOP },
   [BLOCK.STONE_SLAB_TOP]: { name: "Stone Slab", ...SLAB, shape: [[0, 0.5, 0, 1, 1, 1]], variantOf: BLOCK.STONE_SLAB },
+
+  // Stairs: a bottom slab + a back-upper box. `rotates` → 4 Y-rotations precomputed
+  // and indexed by meta 0-3 (facing). Base (meta 0) has the tall back on the -Z side.
+  [BLOCK.STONE_STAIRS]:   { name: "Stone Stairs", tiles: { all: "stone" }, opaque: false, rotates: true,
+                            shape: [[0, 0, 0, 1, 0.5, 1], [0, 0.5, 0, 1, 1, 0.5]] },
+};
+
+// Rotate a box 90° clockwise around the Y axis (about the voxel centre):
+// (x,z) -> (z, 1-x), y unchanged; re-normalise to [min..max].
+function rotateBoxY(b) { return [b[2], b[1], 1 - b[3], b[5], b[4], 1 - b[0]]; }
+// Mirror a box around y = 0.5 (upside-down).
+function flipBoxY(b) { return [b[0], 1 - b[4], b[2], b[3], 1 - b[1], b[5]]; }
+const rotateShapeY = (shape, n) => {
+  let s = shape;
+  for (let i = 0; i < (n & 3); i++) s = s.map(rotateBoxY);
+  return s;
 };
 
 // Fill in defaults.
@@ -107,6 +124,10 @@ for (const id in BLOCKS) {
   if (b.needsSupport === undefined) b.needsSupport = false;
   if (b.light === undefined) b.light = 0;
   if (b.shape === undefined) b.shape = null; // null = full cube
+  if (b.rotates && b.shape) {
+    const flat = [0, 1, 2, 3].map((n) => rotateShapeY(b.shape, n));
+    b.shapes = flat.concat(flat.map((s) => s.map(flipBoxY))); // meta 0-3 upright, 4-7 upside-down
+  }
   const t = b.tiles;
   b.faces = {
     top: t.top || t.side || t.all,
@@ -137,6 +158,13 @@ export function isCross(id) {
   return b ? b.render === "cross" : false;
 }
 
+// The shape (list of boxes) for a voxel, resolving rotation from meta. null = full cube.
+export function shapeFor(id, meta) {
+  const b = BLOCKS[id];
+  if (!b || !b.shape) return null;
+  return b.shapes ? b.shapes[meta & 7] : b.shape;
+}
+
 // True for blocks that fall (are destroyed) when the block beneath them goes
 // away — the small cross-plants. Used to clear floating plants after a dig.
 // Per-block, so larger flora (cactus, logs) can opt out and stay put.
@@ -152,7 +180,7 @@ const HARDNESS = {
   [BLOCK.DIRT]: 0.6, [BLOCK.SAND]: 0.6, [BLOCK.RED_SAND]: 0.6, [BLOCK.GRASS]: 0.7,
   [BLOCK.GRAVEL]: 0.8, [BLOCK.ICE]: 0.6,
   [BLOCK.LOG]: 2.0, [BLOCK.PLANK]: 2.0, [BLOCK.SANDSTONE]: 1.8,
-  [BLOCK.STONE]: 3.5, [BLOCK.COBBLE]: 3.5, [BLOCK.STONE_SLAB]: 2.5,
+  [BLOCK.STONE]: 3.5, [BLOCK.COBBLE]: 3.5, [BLOCK.STONE_SLAB]: 2.5, [BLOCK.STONE_STAIRS]: 3.0,
   [BLOCK.COAL_ORE]: 4.0, [BLOCK.IRON_ORE]: 4.5, [BLOCK.GOLD_ORE]: 4.5,
   [BLOCK.BEDROCK]: Infinity,
 };
@@ -167,7 +195,7 @@ export function blockHardness(id) {
 // The tool type that mines a block fastest (and, for gated blocks, is required
 // to harvest it). null = no preferred tool (hands are fine).
 const BLOCK_TOOL = {
-  [BLOCK.STONE]: "pickaxe", [BLOCK.COBBLE]: "pickaxe", [BLOCK.SANDSTONE]: "pickaxe", [BLOCK.STONE_SLAB]: "pickaxe",
+  [BLOCK.STONE]: "pickaxe", [BLOCK.COBBLE]: "pickaxe", [BLOCK.SANDSTONE]: "pickaxe", [BLOCK.STONE_SLAB]: "pickaxe", [BLOCK.STONE_STAIRS]: "pickaxe",
   [BLOCK.COAL_ORE]: "pickaxe", [BLOCK.IRON_ORE]: "pickaxe", [BLOCK.GOLD_ORE]: "pickaxe", [BLOCK.ICE]: "pickaxe",
   [BLOCK.LOG]: "axe", [BLOCK.PLANK]: "axe",
   [BLOCK.DIRT]: "shovel", [BLOCK.GRASS]: "shovel", [BLOCK.SAND]: "shovel",
@@ -177,7 +205,7 @@ const BLOCK_TOOL = {
 // 0 = harvestable by hand. Mining a gated block with too weak/wrong a tool still
 // breaks it but yields nothing.
 const BLOCK_MIN_TIER = {
-  [BLOCK.STONE]: 1, [BLOCK.COBBLE]: 1, [BLOCK.SANDSTONE]: 1, [BLOCK.COAL_ORE]: 1, [BLOCK.STONE_SLAB]: 1,
+  [BLOCK.STONE]: 1, [BLOCK.COBBLE]: 1, [BLOCK.SANDSTONE]: 1, [BLOCK.COAL_ORE]: 1, [BLOCK.STONE_SLAB]: 1, [BLOCK.STONE_STAIRS]: 1,
   [BLOCK.IRON_ORE]: 2, [BLOCK.GOLD_ORE]: 3,
 };
 export function blockTool(id) {

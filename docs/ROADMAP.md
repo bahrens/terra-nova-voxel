@@ -206,12 +206,23 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       bottom slab (Minecraft-style), and placing onto a matching slab doubles it to
       a full block. Introduced a `variantOf` pattern (the top slab shares config,
       has no own item, drops + mines as the base). Highlight/crack overlays fit the
-      shape. *Next:* **stairs (Increment 2)** — a 2-box shape that
-      forces the **orientation/metadata** decision (the voxel `Uint8Array` has no
-      room for a facing; need a parallel meta layer / packed bits / per-facing ids).
-      Then fences + **attached wall-torches** (the torch motivation). Still
-      simplified: shaped blocks are non-opaque for light (no partial shadow); slab
-      inventory icon is a full-cube; a doubled slab drops cobble, not 2 slabs.
+      shape. *Increment 2 done — stairs + metadata:* added a per-voxel `meta` byte
+      (chunk `Uint8Array` + packed into saves as `id|meta<<8`, back-compatible).
+      `STONE_STAIRS` with `shapeFor(id, meta)` selecting one of 8 precomputed
+      shapes — 4 facings (from look direction) × upright/upside-down (from the
+      clicked half). Mesher/collision/raycast/highlight all meta-aware.
+      *Next:* **corner (connecting) stair shapes** — inner/outer L corners are
+      *derived from neighbouring stairs* (not stored), the ×5 that makes Minecraft's
+      40 stair blockstates. Same "shape derived from neighbours" machinery as
+      **fences** (connect to adjacent posts), so build them together. Then
+      **attached wall-torches** (the torch motivation).
+- [ ] **Stair/placement polish** — clicking a stair's exposed step face places on
+      top (standard voxel placement against the surface you hit); Minecraft's
+      smarter combine/corner behaviour comes with the connecting-shapes work above.
+      Also want **auto-step** (0.5-block step-up) so stairs/slabs walk smoothly
+      without a hop. Still simplified for shaped blocks: non-opaque for light (no
+      partial shadow); slab/stair inventory icons are full-cube; a doubled slab
+      drops cobble, not 2 slabs.
 - [ ] **Block physics** — gravity-affected blocks (falling sand/gravel).
 - [ ] **Plant placement & growth rules** — data-driven properties for what each
       plant can grow/be placed on (valid ground block types) and which biomes it
