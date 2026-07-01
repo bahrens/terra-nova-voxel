@@ -1,12 +1,12 @@
-// World: owns all chunks, generates terrain, streams chunks around the player,
-// and exposes getBlock / setBlock used by the player and the mesher.
-import * as THREE from "three";
+// World: the headless simulation — owns all chunks, generates terrain, streams
+// chunks around the player, runs the fluid sim + light, and exposes
+// getBlock/setBlock/getMeta. No Three.js/DOM, so it runs in Node (the server).
+// Turning chunk data into meshes lives in world-renderer.js (client), which
+// drains meshQueue and disposes chunks via the onChunkUnload hook.
 import { Chunk, CHUNK_SIZE, WORLD_HEIGHT, WATER_LEVEL } from "./chunk.js";
-import { meshChunk } from "./mesher.js";
 import { Noise } from "./noise.js";
 import { BLOCK, BLOCKS, AIR, isSolid, isOpaque, needsSupport } from "./blocks.js";
 import { pickBiome } from "./biomes.js";
-import { TextureAtlas } from "./textures.js";
 import { updateSkyLight, updateBlockLight } from "./light.js";
 
 const key = (cx, cz) => cx + "," + cz;
@@ -45,8 +45,7 @@ function hash3(x, y, z) {
 }
 
 export class World {
-  constructor(scene, { seed = 1337, renderDistance = 6 } = {}) {
-    this.scene = scene;
+  constructor({ seed = 1337, renderDistance = 6 } = {}) {
     this.renderDistance = renderDistance;
     this.chunks = new Map();
     this.heightNoise = new Noise(seed);
@@ -63,15 +62,13 @@ export class World {
     this._col = new Uint8Array(WORLD_HEIGHT);
     this._freeze = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE); // per-column "freezes" flag
 
-    this.atlas = new TextureAtlas();
-    this.materials = this.buildMaterials();
-
     this.genQueue = [];
-    this.meshQueue = [];
+    this.meshQueue = [];           // chunks needing a remesh; drained by WorldRenderer
     this.lightQueue = new Set();   // chunk keys awaiting cross-chunk relight
     this.timings = { gen: 0, light: 0, mesh: 0 }; // per-update ms, read by the profiler
     this.waterActive = new Set(); // packed "x,y,z" keys of cells to re-evaluate
     this.editsByChunk = new Map(); // chunkKey -> Map("wx,wy,wz" -> blockId): player edits
+    this.onChunkUnload = null;     // (chunk) => void — the renderer disposes its meshes
   }
 
   // ---- Player edits (the save-able diff from procedural generation) ----
@@ -112,57 +109,6 @@ export class World {
       const c = wk.split(","), v = obj[wk];
       this.recordEdit(+c[0], +c[1], +c[2], v & 255, (v >> 8) & 255);
     }
-  }
-
-  buildMaterials() {
-    const map = this.atlas.texture;
-    // Shared day/night uniform driven by Sky. Vertex colours carry
-    // r = AO×face shading, g = skylight, b = block light; the patched shader
-    // computes  tex × r × max(b, g × uSky)  so day/night is a uniform update
-    // (no re-meshing) and block light stays constant through the night. A small
-    // ambient floor keeps unlit areas from being pure black before torches exist.
-    const skyUniform = { value: 1 };
-    const debugUniform = { value: 0 }; // 1 = raw light view (toggle with L)
-    const patchLight = (mat) => {
-      mat.onBeforeCompile = (shader) => {
-        shader.uniforms.uSky = skyUniform;
-        shader.uniforms.uDebugLight = debugUniform;
-        shader.fragmentShader = "uniform float uSky;\nuniform float uDebugLight;\n" +
-          shader.fragmentShader.replace(
-          "#include <color_fragment>",
-          `#ifdef USE_COLOR
-             if (uDebugLight > 0.5) {
-               // Debug view: R = block light, G = skylight (raw 0-1), ignoring
-               // texture/AO/day-night so the light data is directly visible.
-               diffuseColor.rgb = vec3(vColor.b, vColor.g, 0.0);
-             } else {
-               // Light curve: each level is ~0.8x the previous for a natural falloff
-               // (vs a flat linear ramp). Applied per channel in level-space; sky is
-               // dimmed by day/night AFTER the curve so night brightness is unchanged.
-               // r = AO x face shading. 0.06 = ambient floor (no pure-black).
-               float skyC = pow(0.8, (1.0 - vColor.g) * 15.0) * uSky;
-               float blockC = pow(0.8, (1.0 - vColor.b) * 15.0);
-               diffuseColor.rgb *= max(vColor.r * max(skyC, blockC), 0.06);
-             }
-           #endif`
-        );
-      };
-    };
-
-    const opaque = new THREE.MeshBasicMaterial({ map, vertexColors: true });
-    patchLight(opaque);
-    const foliage = new THREE.MeshBasicMaterial({
-      map, vertexColors: true, transparent: true, alphaTest: 0.3, side: THREE.DoubleSide,
-    });
-    patchLight(foliage);
-    // depthWrite:true so overlapping water faces from different chunk meshes
-    // don't cumulatively blend (which produced darker seams at chunk borders).
-    // Water keeps the flat vertex brightness + material-colour day/night for now.
-    const water = new THREE.MeshBasicMaterial({
-      map, vertexColors: true, transparent: true, opacity: 0.78,
-      depthWrite: true, side: THREE.DoubleSide,
-    });
-    return { opaque, foliage, water, skyUniform, debugUniform };
   }
 
   // ---- Block access (world coordinates) ----
@@ -692,30 +638,6 @@ export class World {
   }
 
   // ---- Meshing ----
-  buildChunkMesh(chunk) {
-    const geom = meshChunk(chunk, this);
-    if (chunk.meshes) {
-      for (const k of ["opaque", "foliage", "water"]) {
-        const m = chunk.meshes[k];
-        if (m) { this.scene.remove(m); m.geometry.dispose(); }
-      }
-    }
-    const meshes = {};
-    const add = (k, mat) => {
-      const g = geom[k];
-      if (!g) { meshes[k] = null; return; }
-      const mesh = new THREE.Mesh(g, mat);
-      mesh.frustumCulled = true;
-      this.scene.add(mesh);
-      meshes[k] = mesh;
-    };
-    add("opaque", this.materials.opaque);
-    add("foliage", this.materials.foliage);
-    add("water", this.materials.water);
-    chunk.meshes = meshes;
-    chunk.dirty = false;
-  }
-
   // ---- Streaming around the player ----
   // Time-sliced streaming: spend at most `genMs` building new chunks and
   // `meshMs` meshing per call, so a frame is never blocked by a big batch.
@@ -727,7 +649,6 @@ export class World {
     const R = this.renderDistance;
     const now = (typeof performance !== "undefined") ? () => performance.now() : () => Date.now();
     const genMs = budget.genMs ?? 4;
-    const meshMs = budget.meshMs ?? 6;
     const lightMs = budget.lightMs ?? 4;
 
     // Queue generation (radius + 1 so mesh neighbours always have data).
@@ -767,36 +688,18 @@ export class World {
         const cx = pcx + dx, cz = pcz + dz;
         const chunk = this.chunks.get(key(cx, cz));
         if (!chunk || !chunk.dirty) continue;
-        if (chunk.meshes && !chunk.dirty) continue;
         if (this.neighborsReady(cx, cz)) this.queueMesh(chunk);
       }
     }
 
-    // Process mesh queue nearest-first, within the time budget.
-    this.meshQueue.sort((a, b) => {
-      const da = (a.cx - pcx) ** 2 + (a.cz - pcz) ** 2;
-      const db = (b.cx - pcx) ** 2 + (b.cz - pcz) ** 2;
-      return da - db;
-    });
-    const tMesh = now();
-    while (this.meshQueue.length) {
-      const chunk = this.meshQueue.shift();
-      if (!this.chunks.has(key(chunk.cx, chunk.cz))) continue;
-      this.buildChunkMesh(chunk);
-      if (now() - tMesh >= meshMs) break; // always meshes at least one
-    }
-    this.timings.mesh = now() - tMesh;
+    // Meshing (draining meshQueue) is the WorldRenderer's job — the sim just marks
+    // dirty + ready chunks above.
 
-    // Unload distant chunks.
+    // Unload distant chunks (the renderer disposes their meshes via onChunkUnload).
     const unloadR = R + 2;
     for (const [k, chunk] of this.chunks) {
       if (Math.abs(chunk.cx - pcx) > unloadR || Math.abs(chunk.cz - pcz) > unloadR) {
-        if (chunk.meshes) {
-          for (const mk of ["opaque", "foliage", "water"]) {
-            const m = chunk.meshes[mk];
-            if (m) { this.scene.remove(m); m.geometry.dispose(); }
-          }
-        }
+        if (this.onChunkUnload) this.onChunkUnload(chunk);
         this.chunks.delete(k);
       }
     }

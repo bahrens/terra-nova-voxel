@@ -55,7 +55,7 @@ function aoValue(side1, side2, corner) {
 
 // Build BufferGeometries for a chunk. `world` resolves neighbour blocks (including
 // across chunk borders). Returns { opaque, foliage, water } (each null if empty).
-export function meshChunk(chunk, world) {
+export function meshChunk(chunk, world, atlas) {
   const S = CHUNK_SIZE, H = WORLD_HEIGHT;
   const ox = chunk.cx * S, oz = chunk.cz * S;
 
@@ -93,7 +93,7 @@ export function meshChunk(chunk, world) {
     return arr[snapIdx(lx, wy, lz)];
   };
   const view = {
-    atlas: world.atlas,
+    atlas,
     getBlock: (wx, wy, wz) => sample(_snapB, wx, wy, wz, AIR),
     getSkyLight: (wx, wy, wz) => (wy >= H ? 15 : sample(_snapLs, wx, wy, wz, 0)),
     getBlockLight: (wx, wy, wz) => sample(_snapLb, wx, wy, wz, 0),

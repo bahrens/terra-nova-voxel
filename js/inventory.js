@@ -14,13 +14,13 @@ function sanitizeHotbar(arr) {
 }
 
 export class Inventory {
-  // deps: { player, world, toast, savedHotbar }
+  // deps: { player, atlas, toast, savedHotbar }
   //  - player: read .creative; written .toolInfo/.placeId (what's held)
-  //  - world:  for world.atlas.iconCanvas(tile, px) item icons
+  //  - atlas:  for atlas.iconCanvas(tile, px) item icons
   //  - toast:  transient message fn (crafting feedback)
-  constructor({ player, world, toast, savedHotbar }) {
+  constructor({ player, atlas, toast, savedHotbar }) {
     this.player = player;
-    this.world = world;
+    this.atlas = atlas;
     this.toast = toast || (() => {});
     this.hotbar = sanitizeHotbar(savedHotbar) || [...DEFAULT_HOTBAR];
     this.selected = 0;
@@ -136,7 +136,7 @@ export class Inventory {
       const def = id != null ? ITEMS[id] : null;
       const slot = document.createElement("div");
       slot.className = "slot" + (i === this.selected ? " selected" : "");
-      if (def) slot.appendChild(this.world.atlas.iconCanvas(def.tile, 38));
+      if (def) slot.appendChild(this.atlas.iconCanvas(def.tile, 38));
       const num = document.createElement("span");
       num.className = "num"; num.textContent = i + 1; slot.appendChild(num);
       if (def) {
@@ -169,7 +169,7 @@ export class Inventory {
       const def = ITEMS[id];
       const cell = document.createElement("div");
       cell.className = "inv-item"; cell.title = def.name;
-      cell.appendChild(this.world.atlas.iconCanvas(def.tile, 34));
+      cell.appendChild(this.atlas.iconCanvas(def.tile, 34));
       const name = document.createElement("span");
       name.className = "inv-name"; name.textContent = def.name; cell.appendChild(name);
       cell.addEventListener("click", () => this.assignToSelected(id));
@@ -186,7 +186,7 @@ export class Inventory {
       const def = ITEMS[id]; if (!def) continue;
       const cell = document.createElement("div");
       cell.className = "inv-item"; cell.title = def.name;
-      cell.appendChild(this.world.atlas.iconCanvas(def.tile, 34));
+      cell.appendChild(this.atlas.iconCanvas(def.tile, 34));
       const cnt = document.createElement("span");
       cnt.className = "inv-count"; cnt.textContent = n; cell.appendChild(cnt);
       cell.addEventListener("click", () => this.assignToSelected(id));
@@ -201,7 +201,7 @@ export class Inventory {
       const craftable = canCraft(recipe, this.counts);
       const row = document.createElement("div");
       row.className = "inv-recipe" + (craftable ? " craftable" : "");
-      row.appendChild(this.world.atlas.iconCanvas(out.tile, 30));
+      row.appendChild(this.atlas.iconCanvas(out.tile, 30));
       const o = document.createElement("span");
       o.className = "r-out"; o.textContent = out.name + (recipe.out.n > 1 ? " ×" + recipe.out.n : "");
       row.appendChild(o);

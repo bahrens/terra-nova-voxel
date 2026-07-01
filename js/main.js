@@ -2,6 +2,8 @@
 // pointer-lock controls, and the main loop.
 import * as THREE from "three";
 import { World } from "./world.js";
+import { WorldRenderer } from "./world-renderer.js";
+import { TextureAtlas } from "./textures.js";
 import { Player } from "./player.js";
 import { Sky } from "./sky.js";
 import { CHUNK_SIZE } from "./chunk.js";
@@ -61,20 +63,22 @@ const save = new SaveManager({
 });
 const seed = save.seed;
 
-const world = new World(scene, { seed, renderDistance: RENDER_DISTANCE });
+const atlas = new TextureAtlas(); // shared client asset: block textures + UVs + icons
+const world = new World({ seed, renderDistance: RENDER_DISTANCE }); // headless sim
+const worldRenderer = new WorldRenderer(world, scene, atlas);       // meshes it into the scene
 if (save.data?.edits) world.loadEditsData(save.data.edits);
 const player = new Player(camera, world, scene);
-const entities = new EntityManager(scene, world, world.atlas);
+const entities = new EntityManager(scene, world, atlas);
 // Breaking a block drops the block's item (stone->cobble, ore->material, etc.),
 // but only when harvested with the right tool/tier (gated blocks yield nothing).
 player.onBreak = (x, y, z, id, harvest) => {
   if (harvest) entities.spawnItem(x + 0.5, y + 0.5, z + 0.5, dropForBlock(id));
 };
-const sky = new Sky(scene, world.materials, { dayLength: 1200 }); // 20 min, like Minecraft
+const sky = new Sky(scene, worldRenderer.materials, { dayLength: 1200 }); // 20 min, like Minecraft
 if (save.data?.sky?.t != null) sky.t = save.data.sky.t;
 
 // ---- Inventory / hotbar / crafting (HUD + panel) — owns its state; see inventory.js ----
-const ui = new Inventory({ player, world, toast, savedHotbar: save.data?.hotbar });
+const ui = new Inventory({ player, atlas, toast, savedHotbar: save.data?.hotbar });
 player.onSelect = (arg, isIndex) => ui.select(arg, isIndex);
 // Survival: placing consumes one of the held item; pickups add to the store.
 player.onPlace = () => ui.consumeOnPlace();
@@ -206,7 +210,8 @@ function prime() {
   loadingEl.classList.add("active");
   let frames = 0;
   const tick = () => {
-    world.update(spawn, { genMs: 22, meshMs: 22 }); // load fast under the loading screen
+    world.update(spawn, { genMs: 22 });       // gen/light/stream
+    worldRenderer.update(spawn, 22);          // mesh under the loading screen
     frames++;
     const ready = world.isReady(spawn) && world.meshQueue.length === 0 && frames > 6;
     renderer.render(scene, camera);
@@ -247,7 +252,7 @@ function toggleProfiler() {
   updateOptLabels();
 }
 function toggleLightView() {
-  const u = world.materials.debugUniform;
+  const u = worldRenderer.materials.debugUniform;
   u.value = u.value > 0.5 ? 0 : 1;
   toast(u.value > 0.5 ? "Light view: ON (R=block, G=sky)" : "Light view: OFF");
   updateOptLabels();
@@ -273,7 +278,7 @@ const optMobBtn = document.getElementById("optMob");
 function updateOptLabels() {
   if (optModeBtn) optModeBtn.textContent = "Mode: " + (player.creative ? "Creative" : "Survival");
   if (optProfilerBtn) optProfilerBtn.classList.toggle("on", prof.enabled);
-  if (optLightBtn) optLightBtn.classList.toggle("on", world.materials.debugUniform.value > 0.5);
+  if (optLightBtn) optLightBtn.classList.toggle("on", worldRenderer.materials.debugUniform.value > 0.5);
 }
 if (optModeBtn) optModeBtn.addEventListener("click", toggleMode);
 if (optDayBtn) optDayBtn.addEventListener("click", () => { sky.t = 0.32; toast("Set to morning"); });
@@ -311,7 +316,7 @@ function start() {
     peakRealMs = Math.max(peakRealMs, realMs);
     const fStart = performance.now();
     if (player.enabled) prof.time("player", () => player.update(dt));
-    prof.time("world", () => world.update(player.position));
+    prof.time("world", () => { world.update(player.position); worldRenderer.update(player.position); });
     prof.record("gen", world.timings.gen);
     prof.record("light", world.timings.light);
     prof.record("mesh", world.timings.mesh);
