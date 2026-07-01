@@ -314,6 +314,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       with the item grid above, and assign via click-to-slot or drag-and-drop into
       a specific slot. Touches `inventory.js` (rendering) + the inventory panel
       markup/CSS.
+- [ ] **Inventory has no easy exit** — the Close button sits at the *bottom* of the
+      inventory panel, so on mobile you must scroll all the way down to close it.
+      Worse, opening the inventory hides the touch controls (incl. the ▦ toggle),
+      so there's no other way out on touch. Add an always-visible close affordance:
+      an **X in the panel's top corner** (and/or tap-outside-to-close). Desktop
+      already closes with `E`/`Esc`; this gap is touch. Touches the inventory panel
+      markup/CSS + `closeInventory` wiring.
 - [ ] **Crouch: toggle + edge protection** — `C` should *toggle* crouch (currently
       hold-only via `keys.has("KeyC")`), and while crouched you should not walk off
       a block edge (Minecraft-style sneak edge-guard). Needs a crouch-toggle flag on
