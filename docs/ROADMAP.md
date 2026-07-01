@@ -63,8 +63,9 @@ lost short list. Items the original list explicitly named are marked ⭐.)
 
 ### Tier 1 — Foundational systems (define the seams; hard to retrofit)
 
-- [ ] ⭐ **Lighting** — real block-light + skylight propagation, replacing today's
-      global brightness scalar. Deep `chunk.js` change; torches are a *consumer*.
+- [x] ⭐ **Lighting** *(done — increments 1–5)* — real block-light + skylight
+      propagation, replacing the old global brightness scalar. Deep `chunk.js`
+      change; torches are a *consumer*.
       **Design (decided 2026-06-28):**
   - Two channels per voxel: *skylight* (from open sky, dimmed by day/night) and
     *block light* (torches, constant). Surface brightness = `max(blockLight,
@@ -102,6 +103,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
     day/night *after* the curve so day (1.0) and night (0.26) surface brightness
     are unchanged while torch light rolls off naturally and shadow edges deepen.
     The 0.8 base is the tuning knob (higher = gentler/brighter falloff).
+  - [ ] **Revisit lighting depth / contrast (AO & shadows) — future, discuss:**
+    current lighting is fine but feels a little flat; we likely traded away depth
+    when the AO was softened (concave corners went from ~0.08 to ~0.5) to kill the
+    dark-wedge triangulation artifact. Worth experimenting — *carefully, so the old
+    dark-wedge / "inside edges light up" bugs don't return*: stronger or tunable
+    AO, per-face directional shading, a lower light-curve base (deeper falloff),
+    and overall shadow contrast. Try variations and compare screenshots.
 - [~] ⭐ **Entities** — a generic entity system where **player, mobs, dropped
       items, and projectiles are all entities**. Build this general, not as
       "mobs" narrowly, or it gets redone. (Mobs = AI/spawning on top.)
@@ -181,8 +189,11 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       solid blocks. A tighter hitbox would cause more snagging for little gain.
 - [ ] **Combat** — attacking entities, mob health, knockback. Follows entities +
       survival.
-- [ ] ⭐ **Torches** — placeable light emitters; consume the lighting system.
-      Likely need the block-shape work below (wall-attached).
+- [~] ⭐ **Torches** — the **emitter is done** (a TORCH block, light 14, in the
+      hotbar; it lights the area and survives the night). Remaining is the *proper
+      torch*: a real 3D shape (not the flat cross billboard), wall-mounting, and
+      support validation — all gated on the non-cube block-shape work below. See
+      "Proper torch shape + wall mounting".
 
 ### Tier 3 — World & physics depth
 
