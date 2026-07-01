@@ -314,19 +314,24 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       with the item grid above, and assign via click-to-slot or drag-and-drop into
       a specific slot. Touches `inventory.js` (rendering) + the inventory panel
       markup/CSS.
-- [ ] **Inventory has no easy exit** — the Close button sits at the *bottom* of the
-      inventory panel, so on mobile you must scroll all the way down to close it.
-      Worse, opening the inventory hides the touch controls (incl. the ▦ toggle),
-      so there's no other way out on touch. Add an always-visible close affordance:
-      an **X in the panel's top corner** (and/or tap-outside-to-close). Desktop
-      already closes with `E`/`Esc`; this gap is touch. Touches the inventory panel
-      markup/CSS + `closeInventory` wiring.
-- [ ] **Crouch: toggle + edge protection** — `C` should *toggle* crouch (currently
-      hold-only via `keys.has("KeyC")`), and while crouched you should not walk off
-      a block edge (Minecraft-style sneak edge-guard). Needs a crouch-toggle flag on
-      the player and an edge check in the movement/collision step that clamps
-      horizontal motion at ledges while crouching. (Supersedes the "crouch
-      edge-protection" note under the mobile item.)
+- [x] **Inventory has no easy exit** *(fixed)* — added a sticky **✕** in the
+      panel's top-right (stays pinned as the panel scrolls) plus tap-outside-to-close
+      on the backdrop, so it's reachable without scrolling — the only exit on touch,
+      where the controls are hidden while the inventory is open.
+- [x] **Crouch: toggle + edge protection** *(done)* — `C` toggles crouch (desktop),
+      double-tap the ⤓ button toggles sneak (touch), both via a `crouchToggle` flag.
+      Added a sneak edge-guard: while crouching on the ground, a horizontal move
+      that would leave the footprint unsupported is undone, so you can't walk off a
+      block edge (`moveAxis` edgeGuard + `hasGroundBelow`).
+- [ ] **Auto-jump** — optionally step up single-block ledges automatically when
+      walking into them (Minecraft Bedrock default), so you don't jump for every
+      1-block rise. Movement check: on a blocked horizontal move while grounded, if
+      the space one block up is clear, hop up. Make it a toggle (some players hate
+      it).
+- [ ] **Break small plants on blocks** — cross-plants (tall grass, flowers) aren't
+      solid, so the block raycast passes straight through them and you can't
+      target/break them. Give the interaction ray a separate "targetable" predicate
+      (include cross-plants) so they can be destroyed — dropping nothing or seeds.
 - [ ] **Proper torch shape + wall mounting** — the torch is a flat cross billboard
       placeholder. Want a real 3D torch post, and the ability to place it on the
       *side* of a block (angled outward), like Minecraft. Depends on the non-cube

@@ -86,7 +86,13 @@ export function setupTouch(player, opts = {}) {
   if (downEl) {
     downEl.addEventListener("pointerdown", (e) => {
       e.preventDefault(); downHold(true)();
-      const t = Date.now(); if (t - lastDown < 300 && player.flying) { player.flying = false; player.flyFast = false; syncSprint(); } lastDown = t;
+      const t = Date.now();
+      if (t - lastDown < 300) {
+        // Double-tap: land if flying, else toggle sneak (mirrors up = fly).
+        if (player.flying) { player.flying = false; player.flyFast = false; syncSprint(); }
+        else { player.crouchToggle = !player.crouchToggle; downEl.classList.toggle("active", player.crouchToggle); }
+      }
+      lastDown = t;
     });
     downEl.addEventListener("pointerup", (e) => { e.preventDefault(); downHold(false)(); });
     downEl.addEventListener("pointercancel", downHold(false));
