@@ -333,10 +333,14 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       mechanics (health/hunger/stacks/mining-costs) land when sequencing makes
       sense. Build systems mode-agnostic: e.g. items already carry `maxStack` for
       later count semantics; creative ignores counts, survival enforces them.
-- [ ] **Multiplayer or not?** Not a feature — an architecture decision that colors
-      everything (authoritative server, entity sync, deterministic gen). If *any*
-      downstream game might be multiplayer, the engine seams must assume it early.
-      *Leaning: in the base.* Decide explicitly when we reach it.
+- [~] **Multiplayer** — *decided: yes, in the base* (a founding requirement).
+      End state is Minecraft-like — an authoritative server for LAN + internet,
+      with single-player as an **integrated server** (in-process). Full plan in
+      **[MULTIPLAYER.md](./MULTIPLAYER.md)**. Phase 1 (the big one) = split the
+      **headless sim core** from the client renderer, so the server can run in
+      Node. That split doubles as the engine/client separation the pluggable base
+      wants. Doing it now (small codebase) is far cheaper than retrofitting, and
+      surfaces MP perf/architecture constraints early.
 
 ## Bugs & polish
 
