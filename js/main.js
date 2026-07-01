@@ -149,8 +149,6 @@ function closeInventory() {
   ui.setPanelOpen(false);
   if (isTouch) refreshUI(); else canvas.requestPointerLock();
 }
-const invCloseBtn = document.getElementById("invClose");
-if (invCloseBtn) invCloseBtn.addEventListener("click", closeInventory);
 const invCloseXBtn = document.getElementById("invCloseX");
 if (invCloseXBtn) invCloseXBtn.addEventListener("click", closeInventory);
 // Tap the dimmed backdrop (outside the panel) to close — always available even

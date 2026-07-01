@@ -307,13 +307,13 @@ lost short list. Items the original list explicitly named are marked ⭐.)
       (`E`) now lets any block be assigned to the 9-slot hotbar, so the digit-key
       cap no longer limits which blocks are reachable. Sandstone (and everything
       else) is placeable again via the inventory. See Tier 1 Inventory.
-- [ ] **Redo inventory → hotbar assignment UX** — today opening the inventory
-      (`E`) hides the HUD hotbar, so the hotbar and the item grid are never on
-      screen together and you can't see the slot you're assigning to. Redesign
-      Minecraft-style: show the hotbar *inside* the inventory screen (bottom row)
-      with the item grid above, and assign via click-to-slot or drag-and-drop into
-      a specific slot. Touches `inventory.js` (rendering) + the inventory panel
-      markup/CSS.
+- [x] **Redo inventory → hotbar assignment UX** *(done; drag-drop is a follow-up)* —
+      the inventory panel is now a fixed header + scrolling item grid + **pinned
+      hotbar footer**, so the hotbar (and the selected slot) stays on screen while
+      you browse and click items into it. Removed the redundant bottom Close button
+      (the ✕ / tap-outside / `Esc` close it). Still click-to-assign (select a slot,
+      then click an item); **drag-and-drop into a specific slot** would be a nice
+      follow-up.
 - [x] **Inventory has no easy exit** *(fixed)* — added a sticky **✕** in the
       panel's top-right (stays pinned as the panel scrolls) plus tap-outside-to-close
       on the backdrop, so it's reachable without scrolling — the only exit on touch,
