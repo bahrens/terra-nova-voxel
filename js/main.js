@@ -10,6 +10,7 @@ import { CHUNK_SIZE } from "./chunk.js";
 import { BLOCK } from "./blocks.js";
 import { dropForBlock } from "./items.js";
 import { EntityManager } from "./entity.js";
+import { EntityRenderer } from "./entity-renderer.js";
 import { Inventory } from "./inventory.js";
 import { SaveManager } from "./save.js";
 import { Overlays } from "./overlays.js";
@@ -68,7 +69,8 @@ const world = new World({ seed, renderDistance: RENDER_DISTANCE }); // headless 
 const worldRenderer = new WorldRenderer(world, scene, atlas);       // meshes it into the scene
 if (save.data?.edits) world.loadEditsData(save.data.edits);
 const player = new Player(camera, world, scene);
-const entities = new EntityManager(scene, world, atlas);
+const entities = new EntityManager(world);                         // headless sim
+const entityRenderer = new EntityRenderer(scene, world, atlas);     // meshes synced from state
 // Breaking a block drops the block's item (stone->cobble, ore->material, etc.),
 // but only when harvested with the right tool/tier (gated blocks yield nothing).
 player.onBreak = (x, y, z, id, harvest) => {
@@ -320,7 +322,8 @@ function start() {
     prof.record("gen", world.timings.gen);
     prof.record("light", world.timings.light);
     prof.record("mesh", world.timings.mesh);
-    if (player.enabled) prof.time("entity", () => entities.update(dt, player, sky.brightness));
+    if (player.enabled) prof.time("entity", () => entities.update(dt, player));
+    entityRenderer.sync(entities.list, dt, sky.brightness);
     // Step the fluid sim a few times a second so flow animates over ticks.
     waterAccum += dt;
     if (waterAccum >= 0.16) { world.simulateWater(2000); waterAccum = 0; }
